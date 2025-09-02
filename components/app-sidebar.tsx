@@ -73,6 +73,15 @@ export function AppSidebar() {
   const userName = session?.user?.name || "Usuario"
   const userEmail = session?.user?.email || ""
 
+  // Filtrar items del menú basado en el rol del usuario
+  const filteredMenuItems = menuItems.filter(item => {
+    // Solo mostrar "Usuarios" a los administradores
+    if (item.title === "Usuarios") {
+      return userRole === "admin"
+    }
+    return true
+  })
+
   return (
     <Sidebar>
       <SidebarHeader>
@@ -93,7 +102,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Navegación</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => (
+              {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <a href={item.url}>
