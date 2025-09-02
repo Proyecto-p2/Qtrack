@@ -56,6 +56,10 @@ export default function DashboardLayout({
     await signOut({ callbackUrl: "/auth/login" })
   }
 
+  const handleGoToProfile = () => {
+    router.push("/dashboard/profile")
+  }
+
   // Obtener datos del usuario de la sesión
   const userRole = (session?.user as any)?.role || "usuario"
   const userName = session?.user?.name || "Usuario"
@@ -125,7 +129,7 @@ export default function DashboardLayout({
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleGoToProfile}>
                     <User className="mr-2 h-4 w-4" />
                     <span>Perfil</span>
                   </DropdownMenuItem>

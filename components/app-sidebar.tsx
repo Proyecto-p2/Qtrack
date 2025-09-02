@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Upload,
   Target,
+  User,
 } from "lucide-react"
 
 import {
@@ -40,6 +41,7 @@ const menuItems = [
   { title: "Carga de Datos", url: "/dashboard/upload", icon: Upload },
   { title: "Reportes", url: "/dashboard/reports", icon: FileSpreadsheet },
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
+  { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
 ]
 
