@@ -1,11 +1,12 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -13,125 +14,144 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Plus, Search, Users, TrendingUp, DollarSign, Edit, Eye } from "lucide-react"
+} from "@/components/ui/dialog";
+import { Plus, Search, Users, TrendingUp, DollarSign, Trash2 } from "lucide-react";
 
 interface Cell {
-  id: number
-  name: string
-  tribeName: string
-  agileCoachName: string
-  productOwnerName: string
-  memberCount: number
-  avgVelocity: number
-  currentSprintPoints: number
-  costPerSprint: number
-  status: "active" | "inactive" | "planning"
+  id: number;
+  name: string;
+  tribeName: string;
+  agileCoachName: string;
+  productOwnerName: string;
+  memberCount: number;
+  avgVelocity: number;
+  currentSprintPoints: number;
+  costPerSprint: number;
+  status: "active" | "inactive" | "planning";
 }
 
 export default function CellsPage() {
-  const [searchTerm, setSearchTerm] = useState("")
+  const router = useRouter();
 
-  const cells: Cell[] = [
-    {
-      id: 1,
-      name: "Célula Frontend Alpha",
-      tribeName: "Tribu Digital",
-      agileCoachName: "Ana García",
-      productOwnerName: "Carlos López",
-      memberCount: 6,
-      avgVelocity: 42,
-      currentSprintPoints: 38,
-      costPerSprint: 15000,
-      status: "active",
-    },
-    {
-      id: 2,
-      name: "Célula Backend Beta",
-      tribeName: "Tribu Digital",
-      agileCoachName: "Luis Martín",
-      productOwnerName: "María Rodríguez",
-      memberCount: 5,
-      avgVelocity: 35,
-      currentSprintPoints: 40,
-      costPerSprint: 18000,
-      status: "active",
-    },
-    {
-      id: 3,
-      name: "Célula DevOps Gamma",
-      tribeName: "Tribu Infraestructura",
-      agileCoachName: "Pedro Sánchez",
-      productOwnerName: "Laura Fernández",
-      memberCount: 4,
-      avgVelocity: 28,
-      currentSprintPoints: 25,
-      costPerSprint: 22000,
-      status: "planning",
-    },
-    {
-      id: 4,
-      name: "Célula QA Delta",
-      tribeName: "Tribu Calidad",
-      agileCoachName: "Ana García",
-      productOwnerName: "Roberto Silva",
-      memberCount: 3,
-      avgVelocity: 25,
-      currentSprintPoints: 28,
-      costPerSprint: 12000,
-      status: "active",
-    },
-    {
-      id: 5,
-      name: "Célula Data Epsilon",
-      tribeName: "Tribu Analytics",
-      agileCoachName: "Carmen Ruiz",
-      productOwnerName: "José Martínez",
-      memberCount: 4,
-      avgVelocity: 30,
-      currentSprintPoints: 32,
-      costPerSprint: 20000,
-      status: "inactive",
-    },
-  ]
+  const [cells, setCells] = useState<Cell[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [open, setOpen] = useState(false);
+
+  // Campos formulario
+  const [name, setName] = useState("");
+  const [tribeName, setTribeName] = useState("");
+  const [agileCoachName, setAgileCoachName] = useState("");
+  const [productOwnerName, setProductOwnerName] = useState("");
+  const [currentSprintPoints, setCurrentSprintPoints] = useState(0);
+  const [avgVelocity, setAvgVelocity] = useState(0);
+  const [costPerSprint, setCostPerSprint] = useState(0);
+  const [memberCount, setMemberCount] = useState(0);
+
+  // Cargar células desde BD
+  const fetchCells = async () => {
+    const res = await fetch("/api/cells");
+    const data = await res.json();
+    const parsedCells: Cell[] = (data.cells || []).map((cell: any) => ({
+      ...cell,
+      memberCount: Number(cell.memberCount),
+      avgVelocity: Number(cell.avgVelocity),
+      currentSprintPoints: Number(cell.currentSprintPoints),
+      costPerSprint: Number(cell.costPerSprint),
+    }));
+    setCells(parsedCells);
+  };
+
+  useEffect(() => {
+    fetchCells();
+  }, []);
+
+  // Crear célula
+  const handleCreate = async () => {
+    const res = await fetch("/api/cells", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        tribeName,
+        agileCoachName,
+        productOwnerName,
+        currentSprintPoints,
+        avgVelocity,
+        costPerSprint,
+        memberCount,
+        status: "planning",
+      }),
+    });
+
+    if (res.ok) {
+      setName("");
+      setTribeName("");
+      setAgileCoachName("");
+      setProductOwnerName("");
+      setCurrentSprintPoints(0);
+      setAvgVelocity(0);
+      setCostPerSprint(0);
+      setMemberCount(0);
+      setOpen(false);
+      fetchCells();
+    } else {
+      console.error("Error al crear célula", await res.text());
+    }
+  };
+
+  // Eliminar célula
+  const handleDelete = async (name: string) => {
+    if (!confirm(`¿Deseas eliminar la célula "${name}"?`)) return;
+
+    const res = await fetch(`/api/cells?name=${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    });
+
+    if (res.ok) {
+      fetchCells();
+    } else {
+      console.error("Error eliminando célula", await res.text());
+    }
+  };
 
   const filteredCells = cells.filter(
     (cell) =>
       cell.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cell.tribeName.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      cell.tribeName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "active":
-        return "default"
+        return "default";
       case "inactive":
-        return "secondary"
+        return "secondary";
       case "planning":
-        return "outline"
+        return "outline";
       default:
-        return "default"
+        return "default";
     }
-  }
+  };
 
   const getStatusText = (status: string) => {
     switch (status) {
       case "active":
-        return "Activa"
+        return "Activa";
       case "inactive":
-        return "Inactiva"
+        return "Inactiva";
       case "planning":
-        return "Planificación"
+        return "Planificación";
       default:
-        return status
+        return status;
     }
-  }
+  };
 
   return (
     <div className="space-y-4">
+      {/* Header y modal crear célula */}
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Gestión de Células</h2>
-        <Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button>
               <Plus className="mr-2 h-4 w-4" />
@@ -146,50 +166,94 @@ export default function CellsPage() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              {/* Campos de formulario */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nombre de la Célula</label>
-                  <Input placeholder="Ej: Célula Frontend Zeta" />
+                  <Input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Ej: Célula Frontend Zeta"
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tribu</label>
-                  <Input placeholder="Ej: Tribu Digital" />
+                  <Input
+                    value={tribeName}
+                    onChange={(e) => setTribeName(e.target.value)}
+                    placeholder="Ej: Tribu Digital"
+                  />
                 </div>
               </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Agile Coach</label>
-                  <Input placeholder="Seleccionar coach..." />
+                  <Input
+                    value={agileCoachName}
+                    onChange={(e) => setAgileCoachName(e.target.value)}
+                    placeholder="Seleccionar coach..."
+                  />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Product Owner</label>
-                  <Input placeholder="Seleccionar PO..." />
+                  <Input
+                    value={productOwnerName}
+                    onChange={(e) => setProductOwnerName(e.target.value)}
+                    placeholder="Seleccionar PO..."
+                  />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+
+              <div className="grid grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Puntos por Sprint</label>
-                  <Input type="number" placeholder="40" />
+                  <Input
+                    type="number"
+                    value={currentSprintPoints}
+                    onChange={(e) =>
+                      setCurrentSprintPoints(e.target.value ? Number(e.target.value) : 0)
+                    }
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Sprints por Q</label>
-                  <Input type="number" placeholder="6" />
+                  <label className="text-sm font-medium">Velocidad Promedio</label>
+                  <Input
+                    type="number"
+                    value={avgVelocity}
+                    onChange={(e) => setAvgVelocity(e.target.value ? Number(e.target.value) : 0)}
+                  />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Capacidad (hrs)</label>
-                  <Input type="number" placeholder="160" />
+                  <label className="text-sm font-medium">Costo por Sprint</label>
+                  <Input
+                    type="number"
+                    value={costPerSprint}
+                    onChange={(e) => setCostPerSprint(e.target.value ? Number(e.target.value) : 0)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Número de Miembros</label>
+                  <Input
+                    type="number"
+                    value={memberCount}
+                    onChange={(e) => setMemberCount(e.target.value ? Number(e.target.value) : 0)}
+                  />
                 </div>
               </div>
+
               <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline">Cancelar</Button>
-                <Button>Crear Célula</Button>
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreate}>Crear Célula</Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Search and Filters */}
+      {/* Filtro de búsqueda */}
       <Card>
         <CardHeader>
           <CardTitle>Filtros</CardTitle>
@@ -207,7 +271,7 @@ export default function CellsPage() {
         </CardContent>
       </Card>
 
-      {/* Cells Table */}
+      {/* Tabla de células */}
       <Card>
         <CardHeader>
           <CardTitle>Células Registradas</CardTitle>
@@ -237,7 +301,15 @@ export default function CellsPage() {
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4 text-muted-foreground" />
-                      {cell.memberCount}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          router.push(`/dashboard/cells/${cell.id}/members`)
+                        }
+                      >
+                        Ver miembros ({cell.memberCount})
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -249,23 +321,23 @@ export default function CellsPage() {
                   <TableCell>{cell.currentSprintPoints} pts</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />${cell.costPerSprint.toLocaleString()}
+                      <DollarSign className="h-4 w-4 text-muted-foreground" />
+                      ${cell.costPerSprint.toLocaleString()}
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant={getStatusColor(cell.status) as any}>{getStatusText(cell.status)}</Badge>
+                    <Badge variant={getStatusColor(cell.status) as any}>
+                      {getStatusText(cell.status)}
+                    </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Edit className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                    </div>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleDelete(cell.name)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}
@@ -274,7 +346,7 @@ export default function CellsPage() {
         </CardContent>
       </Card>
 
-      {/* Summary Cards */}
+      {/* Resumen de métricas */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -283,19 +355,8 @@ export default function CellsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{cells.length}</div>
-            <p className="text-xs text-muted-foreground">{cells.filter((c) => c.status === "active").length} activas</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Miembros Totales</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{cells.reduce((sum, cell) => sum + cell.memberCount, 0)}</div>
             <p className="text-xs text-muted-foreground">
-              Promedio: {Math.round(cells.reduce((sum, cell) => sum + cell.memberCount, 0) / cells.length)} por célula
+              {cells.filter((c) => c.status === "active").length} activas
             </p>
           </CardContent>
         </Card>
@@ -307,9 +368,27 @@ export default function CellsPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {Math.round(cells.reduce((sum, cell) => sum + cell.avgVelocity, 0) / cells.length)}
+              {cells.length > 0
+                ? Math.round(cells.reduce((sum, cell) => sum + cell.avgVelocity, 0) / cells.length)
+                : 0}
             </div>
             <p className="text-xs text-muted-foreground">puntos por sprint</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Puntos Totales Sprint</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {cells.length > 0
+                ? cells.reduce((sum, cell) => sum + cell.currentSprintPoints, 0)
+                : 0}{" "}
+              pts
+            </div>
+            <p className="text-xs text-muted-foreground">sumados de todas las células</p>
           </CardContent>
         </Card>
 
@@ -327,5 +406,5 @@ export default function CellsPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

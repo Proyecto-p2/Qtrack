@@ -184,3 +184,4 @@ INSERT INTO knowledge_lines (name, description, weight_factor) VALUES
 -- Usuario administrador inicial
 INSERT INTO users (email, password_hash, name, role) VALUES
 ('admin@company.com', '$2b$10$example_hash', 'Administrador Sistema', 'admin');
+
