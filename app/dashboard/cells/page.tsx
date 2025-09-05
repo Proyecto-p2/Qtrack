@@ -308,7 +308,7 @@ export default function CellsPage() {
                           router.push(`/dashboard/cells/${cell.id}/members`)
                         }
                       >
-                        Ver miembros ({cell.memberCount})
+                        Ver miembros
                       </Button>
                     </div>
                   </TableCell>
