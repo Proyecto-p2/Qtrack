@@ -131,7 +131,6 @@ export default function MembersPage() {
               </CardHeader>
               <CardContent>
                 <p>Línea de conocimiento: {member.knowledgeLine}</p>
-                <p>ID de célula: {member.cellId}</p>
               </CardContent>
             </Card>
           ))}
