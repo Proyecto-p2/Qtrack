@@ -16,6 +16,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Search, Users, TrendingUp, DollarSign, Trash2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Cell {
   id: number;
@@ -30,10 +37,16 @@ interface Cell {
   status: "active" | "inactive" | "planning";
 }
 
+interface Tribe {
+  id: number;
+  name: string;
+}
+
 export default function CellsPage() {
   const router = useRouter();
 
   const [cells, setCells] = useState<Cell[]>([]);
+  const [tribes, setTribes] = useState<Tribe[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
 
@@ -61,8 +74,16 @@ export default function CellsPage() {
     setCells(parsedCells);
   };
 
+  // Cargar tribus disponibles
+  const fetchTribes = async () => {
+    const res = await fetch("/api/tribes");
+    const data = await res.json();
+    setTribes(data.tribes || []);
+  };
+
   useEffect(() => {
     fetchCells();
+    fetchTribes();
   }, []);
 
   // Crear célula
@@ -178,11 +199,18 @@ export default function CellsPage() {
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tribu</label>
-                  <Input
-                    value={tribeName}
-                    onChange={(e) => setTribeName(e.target.value)}
-                    placeholder="Ej: Tribu Digital"
-                  />
+                  <Select value={tribeName} onValueChange={(value) => setTribeName(value)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tribu..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tribes.map((tribe) => (
+                        <SelectItem key={tribe.id} value={tribe.name}>
+                          {tribe.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
