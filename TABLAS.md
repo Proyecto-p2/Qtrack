@@ -41,3 +41,16 @@ CREATE TABLE members (
     role VARCHAR(255) DEFAULT '',
     FOREIGN KEY (cellId) REFERENCES cells(id) ON DELETE CASCADE
 );
+
+CREATE TABLE q_configurations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quarter VARCHAR(10) NOT NULL, -- Q1, Q2, Q3, Q4
+    year INT NOT NULL,
+    sprints_per_q INT NOT NULL,
+    sprint_duration INT NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
