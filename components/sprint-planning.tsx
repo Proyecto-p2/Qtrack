@@ -52,7 +52,7 @@ export default function SprintPlanning() {
   const [cells, setCells] = useState<Cell[]>([]);
   const [quarters, setQuarters] = useState<QConfig[]>([]);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('');
-  const [selectedCell, setSelectedCell] = useState<string>('');
+  const [selectedCell, setSelectedCell] = useState<string>('all'); // valor por defecto "all"
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setSaving] = useState(false);
   const [editingPoints, setEditingPoints] = useState<{ [key: number]: number }>({});
@@ -111,7 +111,7 @@ export default function SprintPlanning() {
     try {
       const params = new URLSearchParams();
       if (selectedQuarter) params.append('quarter', selectedQuarter);
-      if (selectedCell) params.append('cellId', selectedCell);
+      if (selectedCell && selectedCell !== "all") params.append('cellId', selectedCell);
 
       const response = await fetch(`/api/sprints?${params}`);
       if (response.ok) {
@@ -157,7 +157,6 @@ export default function SprintPlanning() {
       });
 
       if (response.ok) {
-        // Actualizar el estado local
         setSprints(prev => prev.map(sprint => 
           sprint.id === sprintId 
             ? { ...sprint, plannedPoints: editingPoints[sprintId] }
@@ -203,8 +202,6 @@ export default function SprintPlanning() {
       });
 
       await Promise.all(promises.filter(p => p));
-      
-      // Recargar sprints para sincronizar
       await loadSprints();
       
       toast({
@@ -255,8 +252,6 @@ export default function SprintPlanning() {
           title: "Éxito",
           description: data.message,
         });
-        
-        // Recargar sprints
         await loadSprints();
         setSelectedCellsForGeneration([]);
       } else {
@@ -307,6 +302,7 @@ export default function SprintPlanning() {
 
   return (
     <div className="space-y-6">
+      {/* Cabecera con botones */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Planificación de Sprints</h1>
@@ -402,6 +398,7 @@ export default function SprintPlanning() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-4">
+            {/* Select de Quarter */}
             <div className="flex-1">
               <Label htmlFor="quarter-select">Quarter</Label>
               <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
@@ -410,14 +407,18 @@ export default function SprintPlanning() {
                 </SelectTrigger>
                 <SelectContent>
                   {quarters.map(quarter => (
-                    <SelectItem key={quarter.id} value={`${quarter.year}-${quarter.quarter}`}>
+                    <SelectItem
+                      key={quarter.id}
+                      value={`${quarter.year}-${quarter.quarter}`}
+                    >
                       {quarter.year} - {quarter.quarter} {quarter.isActive && '(Activo)'}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            
+
+            {/* Select de Célula */}
             <div className="flex-1">
               <Label htmlFor="cell-select">Célula (Opcional)</Label>
               <Select value={selectedCell} onValueChange={setSelectedCell}>
@@ -425,7 +426,7 @@ export default function SprintPlanning() {
                   <SelectValue placeholder="Todas las células" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas las células</SelectItem>
+                  <SelectItem value="all">Todas las células</SelectItem> {/* ✅ valor válido */}
                   {cells.map(cell => (
                     <SelectItem key={cell.id} value={cell.id.toString()}>
                       {cell.name} ({cell.tribeName})
