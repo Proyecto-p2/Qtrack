@@ -34,18 +34,18 @@ import { useSession } from "next-auth/react"
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
   { title: "Células", url: "/dashboard/cells", icon: Building2 },
-  { title: "Tribus", url: "/dashboard/tribes", icon: Users }, 
-  { title: "Métricas", url: "/dashboard/metrics", icon: BarChart3 },
+  { title: "Tribus", url: "/dashboard/tribes", icon: Users },
+  // { title: "Métricas", url: "/dashboard/metrics", icon: BarChart3 },
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
   { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
-  { title: "Mi Rendimiento", url: "/dashboard/performance", icon: TrendingUp },
-  { title: "Registro Diario", url: "/dashboard/daily-log", icon: Target },
-  { title: "Alertas", url: "/dashboard/alerts", icon: AlertTriangle },
-  { title: "Carga de Datos", url: "/dashboard/upload", icon: Upload },
-  { title: "Reportes", url: "/dashboard/reports", icon: FileSpreadsheet },
+  // { title: "Mi Rendimiento", url: "/dashboard/performance", icon: TrendingUp },
+  // { title: "Registro Diario", url: "/dashboard/daily-log", icon: Target },
+  // { title: "Alertas", url: "/dashboard/alerts", icon: AlertTriangle },
+  // { title: "Carga de Datos", url: "/dashboard/upload", icon: Upload },
+  // { title: "Reportes", url: "/dashboard/reports", icon: FileSpreadsheet },
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
-  { title: "Configuración", url: "/dashboard/settings", icon: Settings },
+  // { title: "Configuración", url: "/dashboard/settings", icon: Settings },
 
 
 ]
