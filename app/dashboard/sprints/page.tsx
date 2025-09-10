@@ -393,7 +393,7 @@ export default function SprintsPage() {
             </div>
 
             {/* Active Sprints */}
-            <Card>
+            {/* <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Play className="h-5 w-5 text-green-500" />
@@ -445,10 +445,10 @@ export default function SprintsPage() {
                         ))}
                     </div>
                 </CardContent>
-            </Card>
+            </Card> */}
 
             {/* All Sprints Table */}
-            <Card>
+            {/* <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                         <Calendar className="h-5 w-5" />
@@ -520,7 +520,7 @@ export default function SprintsPage() {
                         </TableBody>
                     </Table>
                 </CardContent>
-            </Card>
+            </Card> */}
         </div>
     )
 }
