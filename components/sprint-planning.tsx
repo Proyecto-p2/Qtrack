@@ -52,7 +52,7 @@ export default function SprintPlanning() {
   const [cells, setCells] = useState<Cell[]>([]);
   const [quarters, setQuarters] = useState<QConfig[]>([]);
   const [selectedQuarter, setSelectedQuarter] = useState<string>('');
-  const [selectedCell, setSelectedCell] = useState<string>('');
+  const [selectedCell, setSelectedCell] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setSaving] = useState(false);
   const [editingPoints, setEditingPoints] = useState<{ [key: number]: number }>({});
@@ -111,7 +111,7 @@ export default function SprintPlanning() {
     try {
       const params = new URLSearchParams();
       if (selectedQuarter) params.append('quarter', selectedQuarter);
-      if (selectedCell) params.append('cellId', selectedCell);
+      if (selectedCell && selectedCell !== 'all') params.append('cellId', selectedCell);
 
       const response = await fetch(`/api/sprints?${params}`);
       if (response.ok) {
@@ -425,7 +425,7 @@ export default function SprintPlanning() {
                   <SelectValue placeholder="Todas las células" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Todas las células</SelectItem>
+                  <SelectItem value="all">Todas las células</SelectItem>
                   {cells.map(cell => (
                     <SelectItem key={cell.id} value={cell.id.toString()}>
                       {cell.name} ({cell.tribeName})
