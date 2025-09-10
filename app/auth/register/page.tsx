@@ -1,17 +1,19 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, UserPlus, User, Mail, Lock, FileText } from "lucide-react"
+import { Eye, EyeOff, UserPlus, User, Mail, Lock, FileText, Shield } from "lucide-react"
 import { useHydration } from "@/hooks/use-hydration"
 
 export default function RegisterPage() {
+  const { data: session, status } = useSession()
   const [formData, setFormData] = useState({
     user: "",
     email: "",
@@ -26,6 +28,21 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState("")
   const router = useRouter()
   const hydrated = useHydration()
+
+  // Verificar si el usuario es administrador
+  useEffect(() => {
+    if (status === "loading") return // Aún cargando
+
+    if (status === "unauthenticated") {
+      router.push("/auth/login")
+      return
+    }
+
+    if (session?.user?.role !== "admin") {
+      router.push("/dashboard")
+      return
+    }
+  }, [session, status, router])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -92,9 +109,9 @@ export default function RegisterPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess("¡Registro exitoso! Serás redirigido al login...")
+        setSuccess("¡Registro exitoso! Serás redirigido al dashboard...")
         setTimeout(() => {
-          router.push("/auth/login")
+          router.push("/dashboard")
         }, 2000)
       } else {
         setError(data.message || "Error en el registro")
@@ -107,7 +124,7 @@ export default function RegisterPage() {
     }
   }
 
-  if (!hydrated) {
+  if (!hydrated || status === "loading") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
         <div className="w-full max-w-md">
@@ -128,6 +145,11 @@ export default function RegisterPage() {
     )
   }
 
+  // Si no es admin, no mostrar nada (la redirección ya se manejó en useEffect)
+  if (session?.user?.role !== "admin") {
+    return null
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4 py-8">
       <div className="w-full max-w-md space-y-6">
@@ -135,21 +157,21 @@ export default function RegisterPage() {
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-4">
             <div className="p-3 bg-primary rounded-full">
-              <UserPlus className="h-6 w-6 text-primary-foreground" />
+              <Shield className="h-6 w-6 text-primary-foreground" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold">Crear Cuenta</h1>
+          <h1 className="text-2xl font-bold">Registro de Usuario</h1>
           <p className="text-muted-foreground">
-            Únete al sistema QTRACK
+            Panel de administrador - Crear nuevos usuarios
           </p>
         </div>
 
         {/* Register Form */}
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Registro de Usuario</CardTitle>
+            <CardTitle className="text-xl">Crear Nuevo Usuario</CardTitle>
             <CardDescription>
-              Completa la información para crear tu cuenta
+              Solo administradores pueden crear nuevos usuarios en el sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -304,17 +326,6 @@ export default function RegisterPage() {
                 )}
               </Button>
             </form>
-
-            {/* Login Link */}
-            <div className="mt-6 text-center text-sm">
-              <span className="text-muted-foreground">¿Ya tienes una cuenta? </span>
-              <Link
-                href="/auth/login"
-                className="font-medium text-primary hover:underline"
-              >
-                Inicia sesión aquí
-              </Link>
-            </div>
           </CardContent>
         </Card>
 
