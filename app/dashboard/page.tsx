@@ -27,12 +27,13 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/cells");
       const data = await res.json();
+      console.log("Células cargadas:", data);
       const parsedCells: Cell[] = (data.cells || []).map((cell: any) => ({
         ...cell,
         avgVelocity: Number(cell.avgVelocity),
-        currentSprintPoints: Number(cell.currentSprintPoints),
-        memberCount: Number(cell.memberCount),
-        costPerSprint: Number(cell.costPerSprint),
+        currentSprintPoints: Number(cell.currentSprintPoints ?? 0),
+        memberCount: Number(cell.memberCount ?? 0),
+        costPerSprint: Number(cell.costPerSprint ?? 0),
       }));
       setCells(parsedCells);
     } catch (err) {
@@ -88,33 +89,7 @@ export default function DashboardPage() {
     </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Velocidad Promedio</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cells.length > 0 ? Math.round(cells.reduce((sum, c) => sum + c.avgVelocity, 0) / cells.length) : 0}
-            </div>
-            <p className="text-xs text-muted-foreground">puntos por sprint</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Puntos Totales Sprint</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cells.reduce((sum, c) => sum + c.currentSprintPoints, 0)} pts
-            </div>
-            <p className="text-xs text-muted-foreground">sumados de todas las células</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Costo Total</CardTitle>
+           <CardTitle className="text-sm font-medium">Costo Total</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -143,13 +118,6 @@ export default function DashboardPage() {
                 <div key={index} className="border rounded-lg p-4">
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="font-medium text-sm">{cell.name}</h4>
-                    <Badge
-                      variant={
-                        efficiency >= 90 ? "default" : efficiency >= 75 ? "secondary" : "destructive"
-                      }
-                    >
-                      {cell.avgVelocity}/{cell.currentSprintPoints}
-                    </Badge>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between text-xs">

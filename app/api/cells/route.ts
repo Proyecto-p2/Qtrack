@@ -13,22 +13,13 @@ async function connectDB() {
   });
 }
 
+// Crear célula
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const {
-      name,
-      tribeName,
-      agileCoachName,
-      productOwnerName,
-      memberCount = 0,
-      avgVelocity = 0,
-      currentSprintPoints = 0,
-      costPerSprint = 0.0,
-      status = "planning",
-    } = body;
+    const { name, tribeName, agileCoachName, costPerSprint = 0.0, status = "planning" } = body;
 
-    if (!name || !tribeName || !agileCoachName || !productOwnerName) {
+    if (!name || !tribeName || !agileCoachName || costPerSprint === undefined) {
       return NextResponse.json(
         { message: "Faltan datos obligatorios" },
         { status: 400 }
@@ -38,20 +29,9 @@ export async function POST(req: Request) {
     const db = await connectDB();
 
     const [result] = await db.execute(
-      `INSERT INTO cells 
-        (name, tribeName, agileCoachName, productOwnerName, memberCount, avgVelocity, currentSprintPoints, costPerSprint, status) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        name,
-        tribeName,
-        agileCoachName,
-        productOwnerName,
-        memberCount,
-        avgVelocity,
-        currentSprintPoints,
-        costPerSprint,
-        status,
-      ]
+      `INSERT INTO cells (name, tribeName, agileCoachName, costPerSprint, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name, tribeName, agileCoachName, costPerSprint, status]
     );
 
     await db.end();
@@ -69,27 +49,21 @@ export async function POST(req: Request) {
   }
 }
 
+// Obtener todas las células
 export async function GET() {
   try {
     const db = await connectDB();
-
     const [rows] = await db.execute("SELECT * FROM cells");
-
     await db.end();
 
-    // 🔹 Normalizar nombres para que el frontend reciba siempre lo esperado
     const normalized = (rows as any[]).map((row) => ({
       id: row.id,
       name: row.name,
-      tribeName: row.tribeName || row.tribe_name,
-      agileCoachName: row.agileCoachName || row.agile_coach_name,
-      productOwnerName: row.productOwnerName || row.product_owner_name,
-      memberCount: row.memberCount || row.member_count,
-      avgVelocity: row.avgVelocity || row.avg_velocity,
-      currentSprintPoints: row.currentSprintPoints || row.current_sprint_points,
-      costPerSprint: row.costPerSprint || row.cost_per_sprint,
+      tribeName: row.tribeName,
+      agileCoachName: row.agileCoachName,
+      costPerSprint: row.costPerSprint,
       status: row.status,
-      createdAt: row.createdAt || row.created_at,
+      createdAt: row.createdAt,
     }));
 
     return NextResponse.json({ cells: normalized }, { status: 200 });
@@ -102,7 +76,7 @@ export async function GET() {
   }
 }
 
-
+// Eliminar célula por nombre
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
@@ -116,12 +90,7 @@ export async function DELETE(req: Request) {
     }
 
     const db = await connectDB();
-
-    const [result] = await db.execute(
-      "DELETE FROM cells WHERE name = ?",
-      [name]
-    );
-
+    const [result] = await db.execute("DELETE FROM cells WHERE name = ?", [name]);
     await db.end();
 
     if ((result as any).affectedRows === 0) {
