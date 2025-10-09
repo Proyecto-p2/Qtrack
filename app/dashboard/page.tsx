@@ -102,7 +102,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Resumen de rendimiento */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Target className="h-5 w-5" />Resumen de Rendimiento</CardTitle>
           <CardDescription>Métricas clave de las células más activas</CardDescription>
@@ -132,10 +132,10 @@ export default function DashboardPage() {
             })}
           </div>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Alertas recientes */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" />Alertas Recientes</CardTitle>
           <CardDescription>Últimas alertas generadas por el sistema</CardDescription>
@@ -158,7 +158,7 @@ export default function DashboardPage() {
             </Alert>
           ))}
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Acciones rápidas */}
       <Card>
@@ -171,17 +171,17 @@ export default function DashboardPage() {
               <Building2 className="h-5 w-5 text-blue-600" />
               <div><p className="font-medium text-sm">Gestionar Células</p><p className="text-xs text-muted-foreground">Ver y editar células</p></div>
             </a>
-            <a href="/dashboard/sprints" className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+            <a href="/dashboard/sprint-planning" className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
               <Calendar className="h-5 w-5 text-green-600" />
-              <div><p className="font-medium text-sm">Sprints</p><p className="text-xs text-muted-foreground">Ver avances por sprint</p></div>
+              <div><p className="font-medium text-sm">Planificación</p><p className="text-xs text-muted-foreground">Planificar sprints</p></div>
             </a>
-            <a href="/dashboard/reports" className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+            <a href="/dashboard/users" className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
               <FileSpreadsheet className="h-5 w-5 text-purple-600" />
-              <div><p className="font-medium text-sm">Reportes</p><p className="text-xs text-muted-foreground">Generar reportes PDF/Excel</p></div>
+              <div><p className="font-medium text-sm">Usuarios</p><p className="text-xs text-muted-foreground">Gestion de usuarios</p></div>
             </a>
             <a href="/dashboard/uploads" className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
               <Upload className="h-5 w-5 text-orange-600" />
-              <div><p className="font-medium text-sm">Subir Datos</p><p className="text-xs text-muted-foreground">Actualizar información de células</p></div>
+              <div><p className="font-medium text-sm">Mi Perfil</p><p className="text-xs text-muted-foreground">Administrar perfil</p></div>
             </a>
           </div>
         </CardContent>

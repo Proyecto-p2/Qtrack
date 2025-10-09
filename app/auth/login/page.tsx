@@ -175,7 +175,7 @@ export default function LoginPage() {
               </Button>
             </form>
 
-            {/* Register Link */}
+            {/* Register Link
             <div className="mt-6 text-center text-sm">
               <span className="text-muted-foreground">¿No tienes una cuenta? </span>
               <Link
@@ -184,7 +184,7 @@ export default function LoginPage() {
               >
                 Regístrate aquí
               </Link>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
 

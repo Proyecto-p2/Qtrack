@@ -39,21 +39,13 @@ export default function HomePage() {
               </Button>
             </Link>
 
-            {/* Register Button */}
+            {/* Register Button
             <Link href="/auth/register" className="block">
               <Button variant="outline" className="w-full" size="lg">
                 <UserPlus className="h-5 w-5 mr-2" />
                 Crear Cuenta
               </Button>
-            </Link>
-
-            {/* Dashboard Link (for testing) */}
-            <Link href="/dashboard" className="block">
-              <Button variant="secondary" className="w-full" size="sm">
-                <Activity className="h-4 w-4 mr-2" />
-                Ver Dashboard (Prueba)
-              </Button>
-            </Link>
+            </Link> */}
           </CardContent>
         </Card>
 
