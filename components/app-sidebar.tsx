@@ -13,6 +13,7 @@ import {
   Upload,
   Target,
   User,
+  CalendarDays,
 } from "lucide-react"
 
 import {
@@ -37,6 +38,7 @@ const menuItems = [
   { title: "Tribus", url: "/dashboard/tribes", icon: Users }, 
   { title: "Métricas", url: "/dashboard/metrics", icon: BarChart3 },
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
+  { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
   { title: "Mi Rendimiento", url: "/dashboard/performance", icon: TrendingUp },
   { title: "Registro Diario", url: "/dashboard/daily-log", icon: Target },
   { title: "Alertas", url: "/dashboard/alerts", icon: AlertTriangle },
