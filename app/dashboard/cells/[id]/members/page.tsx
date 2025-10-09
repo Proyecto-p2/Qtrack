@@ -23,10 +23,11 @@ export default function MembersPage() {
   const { data: session, status } = useSession();
 
   const [members, setMembers] = useState<Member[]>([]);
+  const [knowledgeLines, setKnowledgeLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Estados para el modal de crear miembro
+  // Modal
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
@@ -54,12 +55,25 @@ export default function MembersPage() {
     }
   };
 
+  // Fetch de líneas de conocimiento
+  const fetchKnowledgeLines = async () => {
+    try {
+      const res = await fetch("/api/knowledge-lines", { cache: "no-store" });
+      if (!res.ok) throw new Error("Error al obtener líneas de conocimiento");
+      const data = await res.json();
+      setKnowledgeLines(data.knowledgeLines.map((line: any) => line.nombre));
+    } catch (err) {
+      console.error("Error al obtener líneas de conocimiento", err);
+    }
+  };
+
   useEffect(() => {
     if (!session) return;
     fetchMembers();
+    fetchKnowledgeLines();
   }, [id, session]);
 
-  // Crear nuevo miembro
+  // Crear miembro
   const handleAddMember = async () => {
     if (!name || !role || !knowledgeLine) return alert("Completa todos los campos");
     try {
@@ -93,23 +107,38 @@ export default function MembersPage() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Agregar Miembro</DialogTitle>
-              <DialogDescription>Rellena los campos para añadir un nuevo miembro a esta célula.</DialogDescription>
+              <DialogDescription>
+                Rellena los campos para añadir un nuevo miembro a esta célula.
+              </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
-                <label className="block text-sm font-medium">Nombre</label>
+                <label className="block text-sm font-medium mb-1">Nombre</label>
                 <Input value={name} onChange={(e) => setName(e.target.value)} />
               </div>
               <div>
-                <label className="block text-sm font-medium">Rol</label>
+                <label className="block text-sm font-medium mb-1">Rol</label>
                 <Input value={role} onChange={(e) => setRole(e.target.value)} />
               </div>
               <div>
-                <label className="block text-sm font-medium">Línea de conocimiento</label>
-                <Input value={knowledgeLine} onChange={(e) => setKnowledgeLine(e.target.value)} />
+                <label className="block text-sm font-medium mb-1">Línea de conocimiento</label>
+                <select
+                  value={knowledgeLine}
+                  onChange={(e) => setKnowledgeLine(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 p-2 text-sm"
+                >
+                  <option value="">Selecciona una línea</option>
+                  {knowledgeLines.map((line) => (
+                    <option key={line} value={line}>
+                      {line}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+                <Button variant="outline" onClick={() => setOpen(false)}>
+                  Cancelar
+                </Button>
                 <Button onClick={handleAddMember}>Agregar</Button>
               </div>
             </div>

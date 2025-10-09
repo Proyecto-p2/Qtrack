@@ -32,6 +32,7 @@ import { useSession } from "next-auth/react"
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
+   { title: "Líneas de Conocimiento", url: "/dashboard/knowledge-lines", icon: Target },
   { title: "Células", url: "/dashboard/cells", icon: Building2 },
   { title: "Tribus", url: "/dashboard/tribes", icon: Users }, 
   { title: "Métricas", url: "/dashboard/metrics", icon: BarChart3 },
@@ -44,7 +45,7 @@ const menuItems = [
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
-
+  
 
 ]
 

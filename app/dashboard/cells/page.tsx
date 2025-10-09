@@ -10,12 +10,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Search, Users, TrendingUp, DollarSign, Trash2 } from "lucide-react";
+import { Plus, Users, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -29,10 +28,7 @@ interface Cell {
   name: string;
   tribeName: string;
   agileCoachName: string;
-  productOwnerName: string;
   memberCount: number;
-  avgVelocity: number;
-  currentSprintPoints: number;
   costPerSprint: number;
   status: "active" | "inactive" | "planning";
 }
@@ -54,11 +50,7 @@ export default function CellsPage() {
   const [name, setName] = useState("");
   const [tribeName, setTribeName] = useState("");
   const [agileCoachName, setAgileCoachName] = useState("");
-  const [productOwnerName, setProductOwnerName] = useState("");
-  const [currentSprintPoints, setCurrentSprintPoints] = useState(0);
-  const [avgVelocity, setAvgVelocity] = useState(0);
   const [costPerSprint, setCostPerSprint] = useState(0);
-  const [memberCount, setMemberCount] = useState(0);
 
   // Cargar células desde BD
   const fetchCells = async () => {
@@ -67,8 +59,6 @@ export default function CellsPage() {
     const parsedCells: Cell[] = (data.cells || []).map((cell: any) => ({
       ...cell,
       memberCount: Number(cell.memberCount),
-      avgVelocity: Number(cell.avgVelocity),
-      currentSprintPoints: Number(cell.currentSprintPoints),
       costPerSprint: Number(cell.costPerSprint),
     }));
     setCells(parsedCells);
@@ -88,6 +78,11 @@ export default function CellsPage() {
 
   // Crear célula
   const handleCreate = async () => {
+    if (!name.trim() || !tribeName.trim() || !agileCoachName.trim() || !costPerSprint) {
+      alert("Todos los campos son obligatorios");
+      return;
+    }
+
     const res = await fetch("/api/cells", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -95,11 +90,7 @@ export default function CellsPage() {
         name,
         tribeName,
         agileCoachName,
-        productOwnerName,
-        currentSprintPoints,
-        avgVelocity,
         costPerSprint,
-        memberCount,
         status: "planning",
       }),
     });
@@ -108,15 +99,12 @@ export default function CellsPage() {
       setName("");
       setTribeName("");
       setAgileCoachName("");
-      setProductOwnerName("");
-      setCurrentSprintPoints(0);
-      setAvgVelocity(0);
       setCostPerSprint(0);
-      setMemberCount(0);
       setOpen(false);
       fetchCells();
     } else {
       console.error("Error al crear célula", await res.text());
+      alert("Error al crear la célula");
     }
   };
 
@@ -128,11 +116,8 @@ export default function CellsPage() {
       method: "DELETE",
     });
 
-    if (res.ok) {
-      fetchCells();
-    } else {
-      console.error("Error eliminando célula", await res.text());
-    }
+    if (res.ok) fetchCells();
+    else console.error("Error eliminando célula", await res.text());
   };
 
   const filteredCells = cells.filter(
@@ -182,12 +167,9 @@ export default function CellsPage() {
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Crear Nueva Célula</DialogTitle>
-              <DialogDescription>
-                Configura una nueva célula de trabajo con sus integrantes y métricas.
-              </DialogDescription>
             </DialogHeader>
+
             <div className="grid gap-4 py-4">
-              {/* Campos de formulario */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Nombre de la Célula</label>
@@ -197,11 +179,12 @@ export default function CellsPage() {
                     placeholder="Ej: Célula Frontend Zeta"
                   />
                 </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Tribu</label>
-                  <Select value={tribeName} onValueChange={(value) => setTribeName(value)}>
+                  <Select value={tribeName} onValueChange={setTribeName}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Seleccionar tribu..." />
+                      <SelectValue placeholder={tribes.length > 0 ? "Selecciona tribu" : "No hay tribus"} />
                     </SelectTrigger>
                     <SelectContent>
                       {tribes.map((tribe) => (
@@ -220,52 +203,17 @@ export default function CellsPage() {
                   <Input
                     value={agileCoachName}
                     onChange={(e) => setAgileCoachName(e.target.value)}
-                    placeholder="Seleccionar coach..."
+                    placeholder="Nombre del Agile Coach"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Product Owner</label>
-                  <Input
-                    value={productOwnerName}
-                    onChange={(e) => setProductOwnerName(e.target.value)}
-                    placeholder="Seleccionar PO..."
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Puntos por Sprint</label>
-                  <Input
-                    type="number"
-                    value={currentSprintPoints}
-                    onChange={(e) =>
-                      setCurrentSprintPoints(e.target.value ? Number(e.target.value) : 0)
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Velocidad Promedio</label>
-                  <Input
-                    type="number"
-                    value={avgVelocity}
-                    onChange={(e) => setAvgVelocity(e.target.value ? Number(e.target.value) : 0)}
-                  />
-                </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Costo por Sprint</label>
                   <Input
                     type="number"
                     value={costPerSprint}
-                    onChange={(e) => setCostPerSprint(e.target.value ? Number(e.target.value) : 0)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Número de Miembros</label>
-                  <Input
-                    type="number"
-                    value={memberCount}
-                    onChange={(e) => setMemberCount(e.target.value ? Number(e.target.value) : 0)}
+                    onChange={(e) => setCostPerSprint(Number(e.target.value))}
+                    placeholder="Ej: 5000"
                   />
                 </div>
               </div>
@@ -287,15 +235,12 @@ export default function CellsPage() {
           <CardTitle>Filtros</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por nombre de célula o tribu..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-            />
-          </div>
+          <Input
+            placeholder="Buscar por nombre de célula o tribu..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm"
+          />
         </CardContent>
       </Card>
 
@@ -313,8 +258,6 @@ export default function CellsPage() {
                 <TableHead>Tribu</TableHead>
                 <TableHead>Agile Coach</TableHead>
                 <TableHead>Miembros</TableHead>
-                <TableHead>Velocidad</TableHead>
-                <TableHead>Sprint Actual</TableHead>
                 <TableHead>Costo/Sprint</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead>Acciones</TableHead>
@@ -327,32 +270,17 @@ export default function CellsPage() {
                   <TableCell>{cell.tribeName}</TableCell>
                   <TableCell>{cell.agileCoachName}</TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4 text-muted-foreground" />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() =>
-                          router.push(`/dashboard/cells/${cell.id}/members`)
-                        }
-                      >
-                        Ver miembros
-                      </Button>
-                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        router.push(`/dashboard/cells/${cell.id}/members`)
+                      }
+                    >
+                      Ver miembros
+                    </Button>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                      {cell.avgVelocity}
-                    </div>
-                  </TableCell>
-                  <TableCell>{cell.currentSprintPoints} pts</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      ${cell.costPerSprint.toLocaleString()}
-                    </div>
-                  </TableCell>
+                  <TableCell>${cell.costPerSprint.toLocaleString()}</TableCell>
                   <TableCell>
                     <Badge variant={getStatusColor(cell.status) as any}>
                       {getStatusText(cell.status)}
@@ -373,66 +301,6 @@ export default function CellsPage() {
           </Table>
         </CardContent>
       </Card>
-
-      {/* Resumen de métricas */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Células</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{cells.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {cells.filter((c) => c.status === "active").length} activas
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Velocidad Promedio</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cells.length > 0
-                ? Math.round(cells.reduce((sum, cell) => sum + cell.avgVelocity, 0) / cells.length)
-                : 0}
-            </div>
-            <p className="text-xs text-muted-foreground">puntos por sprint</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Puntos Totales Sprint</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {cells.length > 0
-                ? cells.reduce((sum, cell) => sum + cell.currentSprintPoints, 0)
-                : 0}{" "}
-              pts
-            </div>
-            <p className="text-xs text-muted-foreground">sumados de todas las células</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Costo Total</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${cells.reduce((sum, cell) => sum + cell.costPerSprint, 0).toLocaleString()}
-            </div>
-            <p className="text-xs text-muted-foreground">Por sprint actual</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

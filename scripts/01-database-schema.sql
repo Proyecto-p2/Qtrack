@@ -36,20 +36,15 @@ CREATE TABLE knowledge_lines (
 
 -- Tabla de células
 CREATE TABLE cells (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    name VARCHAR(255) NOT NULL,
-    tribe_id INT,
-    agile_coach_id INT,
-    product_owner_id INT,
-    points_per_sprint INT DEFAULT 0,
-    sprints_per_quarter INT DEFAULT 6,
-    capacity_hours INT DEFAULT 160,
-    cost_per_hour DECIMAL(10,2) DEFAULT 0,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (tribe_id) REFERENCES tribes(id),
-    FOREIGN KEY (agile_coach_id) REFERENCES users(id),
-    FOREIGN KEY (product_owner_id) REFERENCES users(id)
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  tribeName VARCHAR(255) NOT NULL,
+  agileCoachName VARCHAR(255) NOT NULL,
+  costPerSprint DECIMAL(10,2) DEFAULT 0.00,
+  status ENUM('active','inactive','planning') DEFAULT 'planning',
+  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
 
 -- Tabla de miembros de células
 CREATE TABLE cell_members (
@@ -184,4 +179,23 @@ INSERT INTO knowledge_lines (name, description, weight_factor) VALUES
 -- Usuario administrador inicial
 INSERT INTO users (email, password_hash, name, role) VALUES
 ('admin@company.com', '$2b$10$example_hash', 'Administrador Sistema', 'admin');
+
+-- Linea de conocimiento por defecto
+
+-- Crear base de datos (si no existe)
+CREATE DATABASE IF NOT EXISTS cell_performance_db;
+USE cell_performance_db;
+
+-- Tabla de líneas de conocimiento
+CREATE TABLE knowledge_lines (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    nombre VARCHAR(255) NOT NULL,                 -- Nombre de la línea de conocimiento
+    descripcion TEXT,                             -- Breve descripción de qué trata
+    categoria VARCHAR(255),                       -- Área o tipo (por ejemplo: Tecnología, Diseño, Gestión)
+    objetivos TEXT,                               -- Qué busca desarrollar o fortalecer
+    peso DECIMAL(3,2) DEFAULT 1.00,               -- Factor de ponderación o relevancia
+    creada_por VARCHAR(255) NOT NULL,                               -- Usuario que la creó
+    creada_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (creada_por) REFERENCES users(id)
+);
 
