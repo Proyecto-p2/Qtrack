@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/components/ui/use-toast';
 
 interface QConfig {
+    id?: number;
     quarter: string;
     year: number;
     sprintsPerQ: number;
@@ -18,63 +19,254 @@ interface QConfig {
     startDate: string;
     endDate: string;
     isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 interface QConfigurationProps {
     onSave?: () => void;
 }
 
+// Helper: sumar días a una fecha ISO (YYYY-MM-DD) de forma segura
+const addDaysISO = (isoDate: string, days: number): string => {
+    const [y, m, d] = isoDate.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + days);
+    const yy = dt.getUTCFullYear();
+    const mm = String(dt.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(dt.getUTCDate()).padStart(2, '0');
+    return `${yy}-${mm}-${dd}`;
+};
+
+// Formatear fecha dd/mm/yyyy
+const formatDateWithoutTimezone = (dateString: string): string => {
+    if (!dateString) return 'No definida';
+
+    // Extraer solo la parte de la fecha (antes de 'T' si existe)
+    const datePart = dateString.split('T')[0];
+    const parts = datePart.split('-');
+
+    if (parts.length !== 3) return 'No definida';
+    const [y, m, d] = parts;
+
+    return `${d}/${m}/${y}`;
+};
+
+// Convertir dd/mm/yyyy a yyyy-mm-dd
+const parseDisplayDate = (displayDate: string): string => {
+    if (!displayDate) return '';
+    const parts = displayDate.split('/');
+    if (parts.length === 3) {
+        const [d, m, y] = parts;
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return displayDate;
+};
+
+// Obtener fecha de hoy en formato ISO
+const makeTodayISO = (): string => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+};
+
+// Calcular fecha de inicio basada en Q anterior
+const calculateStartDate = (quarter: string, year: string, existingConfigs: QConfig[]): string => {
+    const yearNum = parseInt(year);
+
+    const previousQuarters: { [key: string]: string } = {
+        'Q2': 'Q1',
+        'Q3': 'Q2',
+        'Q4': 'Q3'
+    };
+
+    const previousQuarter = previousQuarters[quarter];
+
+    if (previousQuarter) {
+        const previousQConfig = existingConfigs.find(config =>
+            config.quarter === previousQuarter && config.year === yearNum
+        );
+
+        if (previousQConfig?.endDate) {
+            const endDatePart = previousQConfig.endDate.split('T')[0];
+            const nextDay = addDaysISO(endDatePart, 1);
+            console.log(`📅 Q anterior (${previousQuarter}): fin=${endDatePart}, siguiente=${nextDay}`);
+            return nextDay;
+        }
+    }
+
+    const quarterStartMonths: { [key: string]: number } = {
+        'Q1': 0,
+        'Q2': 3,
+        'Q3': 6,
+        'Q4': 9
+    };
+
+    const startMonth = quarterStartMonths[quarter] || 0;
+    const mm = String(startMonth + 1).padStart(2, '0');
+    return `${yearNum}-${mm}-01`;
+};
+
+// Calcular días entre fechas
+const calculateDaysBetweenDates = (start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const startPart = start.split('T')[0];
+    const endPart = end.split('T')[0];
+    const startDateObj = new Date(startPart + 'T00:00:00Z');
+    const endDateObj = new Date(endPart + 'T00:00:00Z');
+    const diffTime = Math.abs(endDateObj.getTime() - startDateObj.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Calcular semanas entre fechas
+const calculateWeeksBetweenDates = (start: string, end: string): number => {
+    const days = calculateDaysBetweenDates(start, end);
+    return Math.ceil(days / 7);
+};
+
 export default function QConfiguration({ onSave }: QConfigurationProps) {
     const [sprintsPerQ, setSprintsPerQ] = useState<string>('4');
     const [sprintDuration, setSprintDuration] = useState<string>('2');
     const [quarter, setQuarter] = useState('Q1');
     const [year, setYear] = useState<string>(new Date().getFullYear().toString());
-    const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+    const [startDate, setStartDate] = useState(makeTodayISO());
     const [endDate, setEndDate] = useState('');
     const [isSaved, setIsSaved] = useState(false);
     const [validationError, setValidationError] = useState('');
     const [isLoading, setIsLoading] = useState(true);
+    const [existingConfigs, setExistingConfigs] = useState<QConfig[]>([]);
     const { toast } = useToast();
 
-    // Cargar configuración existente al montar el componente
+    const [summaryData, setSummaryData] = useState({
+        totalWeeks: 0,
+        totalDays: 0
+    });
+
+    // Calcular resumen
+    const calculateSummaryData = () => {
+        if (!startDate || !endDate) {
+            setSummaryData({ totalWeeks: 0, totalDays: 0 });
+            return;
+        }
+
+        const totalDays = calculateDaysBetweenDates(startDate, endDate);
+        const totalWeeks = calculateWeeksBetweenDates(startDate, endDate);
+
+        setSummaryData({ totalWeeks, totalDays });
+    };
+
+    // Cargar configuraciones al iniciar
     useEffect(() => {
-        const loadCurrentConfig = async () => {
-            try {
-                const response = await fetch('/api/q-configuration');
-                if (response.ok) {
-                    const config: QConfig = await response.json();
+    const loadAllConfigs = async () => {
+        try {
+            const response = await fetch('/api/q-configuration/all');
+            if (response.ok) {
+                const configs: QConfig[] = await response.json();
+                setExistingConfigs(configs);
+                console.log('📊 Configuraciones cargadas:', configs);
 
-                    // Si hay una configuración activa, llenar el formulario con sus valores
-                    if (config.isActive) {
-                        setQuarter(config.quarter);
-                        setYear(config.year.toString());
-                        setSprintsPerQ(config.sprintsPerQ.toString());
-                        setSprintDuration(config.sprintDuration.toString());
-                        setStartDate(config.startDate);
-                        setEndDate(config.endDate);
-                    }
+                const activeConfig = configs.find(config => config.isActive);
+                if (activeConfig) {
+                    setQuarter(activeConfig.quarter);
+                    setYear(activeConfig.year.toString());
+                    setSprintsPerQ(activeConfig.sprintsPerQ.toString());
+                    setSprintDuration(activeConfig.sprintDuration.toString());
+                    setStartDate(activeConfig.startDate.split('T')[0]);
+                    setEndDate(activeConfig.endDate.split('T')[0]);
+                    console.log('✅ Configuración activa cargada:', activeConfig);
                 }
-            } catch (error) {
-                console.error('Error loading Q configuration:', error);
-            } finally {
-                setIsLoading(false);
             }
-        };
+        } catch (error) {
+            console.error('❌ Error cargando configuraciones:', error);
+            toast({
+                title: "Error",
+                description: "No se pudieron cargar las configuraciones",
+                variant: "destructive",
+            });
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-        loadCurrentConfig();
-    }, []);
+    loadAllConfigs();
+}, []);
+
+
+    // Actualizar fecha de inicio al cambiar Q o año
+    useEffect(() => {
+        if (year && quarter && existingConfigs.length > 0) {
+            const hasManualDate = localStorage.getItem(`manualDate-${quarter}-${year}`);
+
+            if (!hasManualDate) {
+                const calculatedStartDate = calculateStartDate(quarter, year, existingConfigs);
+                console.log(`📅 Fecha calculada para ${quarter} ${year}: ${calculatedStartDate}`);
+                setStartDate(calculatedStartDate);
+                setEndDate('');
+            }
+        }
+    }, [quarter, year, existingConfigs]);
+
+    // Actualizar resumen cuando cambian fechas
+    useEffect(() => {
+        calculateSummaryData();
+    }, [startDate, endDate]);
 
     useEffect(() => {
         validateForm();
     }, [sprintsPerQ, sprintDuration, year, startDate, endDate, quarter]);
 
+    // Validar fechas
+    const validateDates = (start: string, end: string): string => {
+        if (!start || !end) return 'Ambas fechas son requeridas';
+
+        const startDateObj = new Date(start + 'T00:00:00Z');
+        const endDateObj = new Date(end + 'T00:00:00Z');
+
+        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
+            return 'Las fechas deben ser válidas';
+        }
+
+        if (startDateObj >= endDateObj) {
+            return 'La fecha de inicio debe ser anterior a la fecha de fin';
+        }
+
+        const diffDays = calculateDaysBetweenDates(start, end);
+
+        if (diffDays > 90) return 'La duración del trimestre no puede exceder 3 meses';
+        if (diffDays < 7) return 'La duración del trimestre debe ser de al menos 1 semana';
+
+        const currentConfig = { quarter, year: parseInt(year), startDate: start, endDate: end };
+        return checkQuarterOverlap(currentConfig, existingConfigs);
+    };
+
+    // Verificar solapamiento
+    const checkQuarterOverlap = (currentConfig: { quarter: string; year: number; startDate: string; endDate: string }, allConfigs: QConfig[]): string => {
+        const currentStart = new Date(currentConfig.startDate + 'T00:00:00Z');
+        const currentEnd = new Date(currentConfig.endDate + 'T00:00:00Z');
+
+        for (const config of allConfigs) {
+            if (config.quarter === currentConfig.quarter && config.year === currentConfig.year) {
+                continue;
+            }
+
+            const configStart = new Date(config.startDate.split('T')[0] + 'T00:00:00Z');
+            const configEnd = new Date(config.endDate.split('T')[0] + 'T00:00:00Z');
+
+            if (currentStart <= configEnd && currentEnd >= configStart) {
+                return `El trimestre se solapa con ${config.quarter} ${config.year}`;
+            }
+        }
+
+        return '';
+    };
+
     const validateForm = (): boolean => {
-        // Convertir a números
         const yearNum = Number(year);
         const sprintsNum = Number(sprintsPerQ);
         const durationNum = Number(sprintDuration);
 
-        // Validar campos numéricos
         if (!year || isNaN(yearNum) || yearNum < 2000 || yearNum > 2999) {
             setValidationError('El año debe ser un número válido entre 2000 y 2999');
             return false;
@@ -98,7 +290,6 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
             }
         }
 
-        // Si no hay fechas, validar que al menos estén vacías
         if ((startDate && !endDate) || (!startDate && endDate)) {
             setValidationError('Ambas fechas son requeridas');
             return false;
@@ -108,168 +299,77 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
         return true;
     };
 
-    // Calcular días entre dos fechas
-    const calculateDaysBetweenDates = (start: string, end: string): number => {
-        const startDateObj = new Date(start);
-        const endDateObj = new Date(end);
-        const diffTime = Math.abs(endDateObj.getTime() - startDateObj.getTime());
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    };
-
-    // Calcular semanas entre dos fechas
-    const calculateWeeksBetweenDates = (start: string, end: string): number => {
-        const days = calculateDaysBetweenDates(start, end);
-        return Math.ceil(days / 7);
-    };
-
-    // Validar que las fechas no se solapen con otros trimestres
-    const validateDates = (start: string, end: string): string => {
-        if (!start || !end) {
-            return 'Ambas fechas son requeridas';
-        }
-
-        const startDateObj = new Date(start);
-        const endDateObj = new Date(end);
-
-        if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-            return 'Las fechas deben ser válidas';
-        }
-
-        if (startDateObj >= endDateObj) {
-            return 'La fecha de inicio debe ser anterior a la fecha de fin';
-        }
-
-        // Validar que no exceda 3 meses (90 días aproximadamente)
-        const diffDays = calculateDaysBetweenDates(start, end);
-
-        if (diffDays > 90) {
-            return 'La duración del trimestre no puede exceder 3 meses';
-        }
-
-        if (diffDays < 7) {
-            return 'La duración del trimestre debe ser de al menos 1 semana';
-        }
-
-        return '';
-    };
-
     const handleSave = async () => {
-        if (!validateForm()) {
-            return;
-        }
-        // Convertir a números y validar
-        const yearNum = Number(year);
-        const sprintsNum = Number(sprintsPerQ);
-        const durationNum = Number(sprintDuration);
+    if (!validateForm()) return;
 
-        // Validar campos numéricos
-        if (!year || isNaN(yearNum) || yearNum < 2000 || yearNum > 2999) {
-            setValidationError('El año debe ser un número válido entre 2000 y 2999');
-            return;
-        }
+    const yearNum = Number(year);
+    const sprintsNum = Number(sprintsPerQ);
+    const durationNum = Number(sprintDuration);
 
-        if (!sprintsPerQ || isNaN(sprintsNum) || sprintsNum < 1 || sprintsNum > 100) {
-            setValidationError('Los sprints por Q deben estar entre 1 y 100');
-            return;
-        }
+    try {
+        // Asegurar que las fechas estén en formato YYYY-MM-DD
+        const formattedStartDate = startDate.split('T')[0];
+        const formattedEndDate = endDate.split('T')[0];
 
-        if (!sprintDuration || isNaN(durationNum) || durationNum < 1 || durationNum > 12) {
-            setValidationError('La duración del sprint debe estar entre 1 y 12 semanas');
-            return;
-        }
+        const qConfig = {
+            quarter,
+            year: yearNum,
+            sprintsPerQ: sprintsNum,
+            sprintDuration: durationNum,
+            startDate: formattedStartDate,
+            endDate: formattedEndDate,
+            isActive: true
+        };
 
-        // Validar fechas
-        if (!startDate) {
-            setValidationError('La fecha de inicio es requerida');
-            return;
-        }
+        console.log('💾 Guardando configuración:', qConfig);
 
-        if (!endDate) {
-            setValidationError('La fecha de fin es requerida');
-            return;
-        }
+        const response = await fetch('/api/q-configuration', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(qConfig),
+        });
 
-        const error = validateDates(startDate, endDate);
-        if (error) {
-            setValidationError(error);
+        if (response.ok) {
+            const result = await response.json();
+            console.log('✅ Configuración guardada:', result);
+
+            setIsSaved(true);
             toast({
-                title: "Error de validación",
-                description: error,
-                variant: "destructive",
-            });
-            return;
-        }
-
-        setValidationError('');
-
-        try {
-            const qConfig: QConfig = {
-                quarter,
-                year: yearNum,
-                sprintsPerQ: sprintsNum,
-                sprintDuration: durationNum,
-                startDate,
-                endDate,
-                isActive: true
-            };
-
-            const response = await fetch('/api/q-configuration', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(qConfig),
+                title: "Configuración guardada",
+                description: `${quarter} ${yearNum} configurado correctamente.`,
             });
 
-            if (response.ok) {
-                setIsSaved(true);
-                toast({
-                    title: "Configuración guardada",
-                    description: `Q${quarter} ${yearNum} configurado con ${sprintsNum} sprints de ${durationNum} semanas cada uno.`,
-                });
-                setTimeout(() => setIsSaved(false), 3000);
+            setTimeout(() => setIsSaved(false), 3000);
 
-                // Llamar al callback onSave si existe
-                if (onSave) {
-                    onSave();
-                }
-            } else {
-                const errorData = await response.json();
-                toast({
-                    title: "Error",
-                    description: errorData.error || "No se pudo guardar la configuración",
-                    variant: "destructive",
-                });
+            // Recargar configuraciones
+            const configsResponse = await fetch('/api/q-configuration/all');
+            if (configsResponse.ok) {
+                const configs = await configsResponse.json();
+                setExistingConfigs(configs);
             }
-        } catch (error) {
-            console.error('Error:', error);
+
+            localStorage.removeItem(`manualDate-${quarter}-${year}`);
+
+            if (onSave) onSave();
+        } else {
+            const errorData = await response.json();
+            console.error('❌ Error del servidor:', errorData);
             toast({
                 title: "Error",
-                description: "Error al guardar la configuración",
+                description: errorData.error || "No se pudo guardar la configuración",
                 variant: "destructive",
             });
         }
-    };
-
-    const handleStartDateChange = (newStartDate: string) => {
-        setStartDate(newStartDate);
-    };
-
-    const handleEndDateChange = (newEndDate: string) => {
-        setEndDate(newEndDate);
-    };
-
-    const handleSprintsChange = (newSprints: string) => {
-        setSprintsPerQ(newSprints);
-    };
-
-    const handleDurationChange = (newDuration: string) => {
-        setSprintDuration(newDuration);
-    };
-
-    const handleYearChange = (newYear: string) => {
-        setYear(newYear);
+    } catch (error) {
+        console.error('❌ Error al guardar:', error);
+        toast({
+            title: "Error",
+            description: "Error de conexión al guardar la configuración",
+            variant: "destructive",
+        });
     }
+};
+
 
     if (isLoading) {
         return (
@@ -291,14 +391,14 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
                     Configuración de Trimestre (Q)
                 </CardTitle>
                 <CardDescription>
-                    Define la estructura de sprints para el próximo trimestre
+                    Define la estructura de sprints para el próximo trimestre.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                         <Label htmlFor="quarter">Trimestre</Label>
-                        <Select value={quarter} onValueChange={setQuarter}>
+                        <Select value={quarter} onValueChange={(v) => { setQuarter(v); localStorage.removeItem(`manualDate-${v}-${year}`); }}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Seleccionar trimestre" />
                             </SelectTrigger>
@@ -319,8 +419,91 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
                             min="2000"
                             max="2999"
                             value={year}
-                            onChange={(e) => handleYearChange(e.target.value)}
+                            onChange={(e) => { setYear(e.target.value); localStorage.removeItem(`manualDate-${quarter}-${e.target.value}`); }}
                         />
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="startDate">Fecha de inicio del Q</Label>
+                        <div className="relative">
+                            <Input
+                                id="startDate"
+                                type="text"
+                                placeholder="dd/mm/yyyy"
+                                value={formatDateWithoutTimezone(startDate)}
+                                readOnly
+                                onClick={(e) => {
+                                    const dateInput = document.createElement('input');
+                                    dateInput.type = 'date';
+                                    dateInput.value = startDate;
+                                    dateInput.style.position = 'absolute';
+                                    dateInput.style.top = '0';
+                                    dateInput.style.left = '0';
+                                    dateInput.style.width = '100%';
+                                    dateInput.style.height = '100%';
+                                    dateInput.style.opacity = '0';
+                                    dateInput.style.cursor = 'pointer';
+
+                                    dateInput.onchange = (ev) => {
+                                        const newValue = (ev.target as HTMLInputElement).value;
+                                        setStartDate(newValue);
+                                        localStorage.setItem(`manualDate-${quarter}-${year}`, 'true');
+                                        dateInput.remove();
+                                    };
+
+                                    dateInput.onblur = () => {
+                                        setTimeout(() => dateInput.remove(), 100);
+                                    };
+
+                                    e.currentTarget.parentElement?.appendChild(dateInput);
+                                    dateInput.focus();
+                                    dateInput.showPicker?.();
+                                }}
+                                className="text-sm cursor-pointer"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="endDate">Fecha de fin del Q</Label>
+                        <div className="relative">
+                            <Input
+                                id="endDate"
+                                type="text"
+                                placeholder="dd/mm/yyyy"
+                                value={formatDateWithoutTimezone(endDate)}
+                                readOnly
+                                onClick={(e) => {
+                                    const dateInput = document.createElement('input');
+                                    dateInput.type = 'date';
+                                    dateInput.value = endDate;
+                                    dateInput.style.position = 'absolute';
+                                    dateInput.style.top = '0';
+                                    dateInput.style.left = '0';
+                                    dateInput.style.width = '100%';
+                                    dateInput.style.height = '100%';
+                                    dateInput.style.opacity = '0';
+                                    dateInput.style.cursor = 'pointer';
+
+                                    dateInput.onchange = (ev) => {
+                                        const newValue = (ev.target as HTMLInputElement).value;
+                                        setEndDate(newValue);
+                                        dateInput.remove();
+                                    };
+
+                                    dateInput.onblur = () => {
+                                        setTimeout(() => dateInput.remove(), 100);
+                                    };
+
+                                    e.currentTarget.parentElement?.appendChild(dateInput);
+                                    dateInput.focus();
+                                    dateInput.showPicker?.();
+                                }}
+                                className="text-sm cursor-pointer"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -333,42 +516,17 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
                             min="1"
                             max="100"
                             value={sprintsPerQ}
-                            onChange={(e) => handleSprintsChange(e.target.value)}
+                            onChange={(e) => setSprintsPerQ(e.target.value)}
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="sprintDuration">Duración por sprint (semanas, 1-12)</Label>
-                        <Input
-                            id="sprintDuration"
-                            type="number"
-                            min="1"
-                            max="12"
-                            value={sprintDuration}
-                            onChange={(e) => handleDurationChange(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                        <Label htmlFor="startDate">Fecha de inicio del Q</Label>
-                        <Input
-                            id="startDate"
-                            type="date"
-                            value={startDate}
-                            onChange={(e) => handleStartDateChange(e.target.value)}
-                        />
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="endDate">Fecha de fin del Q</Label>
-                        <Input
-                            id="endDate"
-                            type="date"
-                            value={endDate}
-                            onChange={(e) => handleEndDateChange(e.target.value)}
-                        />
+                        <Label htmlFor="sprintDuration">Duración por sprint (semanas)</Label>
+                        <div className="flex items-center h-10 px-3 border border-input rounded-md bg-muted">
+                            <span className="text-sm font-medium">
+                                {summaryData.totalWeeks > 0 ? `${summaryData.totalWeeks} semanas` : 'Seleccione fechas'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -394,19 +552,23 @@ export default function QConfiguration({ onSave }: QConfigurationProps) {
                         </div>
                         <div>
                             <p className="text-muted-foreground">Inicio:</p>
-                            <p className="font-medium">{startDate ? new Date(startDate).toLocaleDateString('es-ES') : 'No definida'}</p>
+                            <p className="font-medium">
+                                {formatDateWithoutTimezone(startDate)}
+                            </p>
                         </div>
                         <div>
                             <p className="text-muted-foreground">Fin:</p>
-                            <p className="font-medium">{endDate ? new Date(endDate).toLocaleDateString('es-ES') : 'No definida'}</p>
+                            <p className="font-medium">
+                                {formatDateWithoutTimezone(endDate)}
+                            </p>
                         </div>
                     </div>
                     {startDate && endDate && (
                         <div className="mt-2 pt-2 border-t">
                             <p className="text-sm font-medium">
-                                Duración real: {calculateWeeksBetweenDates(startDate, endDate)} semanas
+                                Duración real: {summaryData.totalWeeks} semanas
                                 <span className="text-muted-foreground ml-2">
-                                    ({calculateDaysBetweenDates(startDate, endDate)} días)
+                                    ({summaryData.totalDays} días)
                                 </span>
                             </p>
                         </div>

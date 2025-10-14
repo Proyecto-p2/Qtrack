@@ -15,10 +15,12 @@ interface Member {
   role: string;
   knowledgeLine: string;
   cellId: number;
+  workload: number;
+  currentLoad: number;
 }
 
 export default function MembersPage() {
-  const { id } = useParams(); // id de la célula
+  const { id } = useParams();
   const router = useRouter();
   const { data: session, status } = useSession();
 
@@ -26,20 +28,20 @@ export default function MembersPage() {
   const [knowledgeLines, setKnowledgeLines] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadInputs, setLoadInputs] = useState<{ [key: number]: string }>({});
 
   // Modal
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [knowledgeLine, setKnowledgeLine] = useState("");
+  const [workload, setWorkload] = useState<string>("");
 
-  // Redirigir si no hay sesión
   useEffect(() => {
     if (status === "loading") return;
     if (!session) router.push("/api/auth/signin");
   }, [status, session, router]);
 
-  // Fetch de miembros
   const fetchMembers = async () => {
     if (!id) return;
     setLoading(true);
@@ -55,7 +57,6 @@ export default function MembersPage() {
     }
   };
 
-  // Fetch de líneas de conocimiento
   const fetchKnowledgeLines = async () => {
     try {
       const res = await fetch("/api/knowledge-lines", { cache: "no-store" });
@@ -73,20 +74,54 @@ export default function MembersPage() {
     fetchKnowledgeLines();
   }, [id, session]);
 
-  // Crear miembro
   const handleAddMember = async () => {
     if (!name || !role || !knowledgeLine) return alert("Completa todos los campos");
     try {
       const res = await fetch(`/api/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, role, knowledgeLine, cellId: Number(id) }),
+        body: JSON.stringify({
+          name,
+          role,
+          knowledgeLine,
+          cellId: Number(id),
+          workload: workload ? Number(workload) : 0
+        }),
       });
       if (!res.ok) throw new Error("Error al agregar miembro");
       setName("");
       setRole("");
       setKnowledgeLine("");
+      setWorkload("");
       setOpen(false);
+      fetchMembers();
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleUpdateLoad = async (memberId: number) => {
+    const newLoadStr = loadInputs[memberId];
+    if (!newLoadStr || newLoadStr.trim() === "") return;
+
+    const newLoad = Number(newLoadStr);
+    if (isNaN(newLoad) || newLoad < 0) {
+      alert("Ingresa un número válido");
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/members/${memberId}/workload`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentLoad: newLoad }),
+      });
+      if (!res.ok) throw new Error("Error al actualizar carga");
+      const data = await res.json();
+      if (data.notificationSent) {
+        alert("Notificación enviada a administradores y agile coaches");
+      }
+      setLoadInputs((prev) => ({ ...prev, [memberId]: "" }));
       fetchMembers();
     } catch (err: any) {
       alert(err.message);
@@ -135,6 +170,16 @@ export default function MembersPage() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Carga asignada (puntos)</label>
+                <Input
+                  type="number"
+                  value={workload}
+                  onChange={(e) => setWorkload(e.target.value)}
+                  min="0"
+                  placeholder="Ej: 100"
+                />
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
@@ -159,7 +204,43 @@ export default function MembersPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <p>Línea de conocimiento: {member.knowledgeLine}</p>
+                <p className="mb-4">Línea de conocimiento: {member.knowledgeLine}</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Carga asignada:</span>
+                    <span className="font-semibold">{member.workload} pts</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span>Carga actual:</span>
+                    <Badge variant={member.currentLoad >= member.workload ? "destructive" : "default"}>
+                      {member.currentLoad} pts
+                    </Badge>
+                  </div>
+                  <div className="pt-2">
+                    <label className="text-xs text-gray-600 mb-1 block">Actualizar carga:</label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        placeholder="Nueva carga"
+                        value={loadInputs[member.id] || ""}
+                        onChange={(e) =>
+                          setLoadInputs((prev) => ({
+                            ...prev,
+                            [member.id]: e.target.value,
+                          }))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        onClick={() => handleUpdateLoad(member.id)}
+                        disabled={!loadInputs[member.id] || loadInputs[member.id].trim() === ""}
+                      >
+                        Actualizar
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}

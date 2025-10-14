@@ -39,7 +39,9 @@ export async function POST(request: Request) {
         const qConfig = await request.json();
         console.log('📊 Datos recibidos:', qConfig);
 
-        if (!qConfig.quarter || !qConfig.year || !qConfig.sprintsPerQ || !qConfig.sprintDuration || !qConfig.startDate || !qConfig.endDate) {
+        // Validación de campos requeridos
+        if (!qConfig.quarter || !qConfig.year || !qConfig.sprintsPerQ ||
+            !qConfig.sprintDuration || !qConfig.startDate || !qConfig.endDate) {
             console.log('❌ Faltan campos requeridos');
             return NextResponse.json(
                 { error: 'Faltan campos requeridos' },
@@ -47,9 +49,12 @@ export async function POST(request: Request) {
             );
         }
 
-        // Validación adicional de fechas
-        const startDate = new Date(qConfig.startDate);
-        const endDate = new Date(qConfig.endDate);
+        // Limpiar y validar fechas
+        const startDateStr = qConfig.startDate.split('T')[0];
+        const endDateStr = qConfig.endDate.split('T')[0];
+
+        const startDate = new Date(startDateStr + 'T00:00:00Z');
+        const endDate = new Date(endDateStr + 'T00:00:00Z');
 
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
             console.log('❌ Fechas inválidas');
@@ -67,73 +72,117 @@ export async function POST(request: Request) {
             );
         }
 
-        // Formatear fechas para MySQL
-        const formattedStartDate = formatDateForMySQL(qConfig.startDate);
-        const formattedEndDate = formatDateForMySQL(qConfig.endDate);
-
         console.log('🔌 Conectando a la base de datos...');
         connection = await mysql.createConnection(dbConfig);
         console.log('✅ Conexión a BD exitosa');
 
-        // Desactivar todas las configuraciones anteriores
-        console.log('⚙️ Desactivando configuraciones anteriores...');
-        const [updateResult] = await connection.execute(
-            'UPDATE q_configurations SET is_active = FALSE WHERE is_active = TRUE'
-        );
-        console.log(`📊 Configuraciones desactivadas: ${(updateResult as any).affectedRows}`);
-
-        // Insertar nueva configuración
-        console.log('💾 Insertando nueva configuración...');
-        const [result] = await connection.execute(
-            `INSERT INTO q_configurations 
-             (quarter, year, sprints_per_q, sprint_duration, start_date, end_date, is_active) 
-             VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
-            [
-                qConfig.quarter,
-                qConfig.year,
-                qConfig.sprintsPerQ,
-                qConfig.sprintDuration,
-                formattedStartDate, // Usar fecha formateada
-                formattedEndDate    // Usar fecha formateada
-            ]
+        // Verificar si ya existe una configuración para este Q y año
+        const [existingRows] = await connection.execute(
+            'SELECT id FROM q_configurations WHERE quarter = ? AND year = ?',
+            [qConfig.quarter, qConfig.year]
         );
 
-        const insertId = (result as any).insertId;
-        console.log(`🎉 Configuración insertada con ID: ${insertId}`);
+        if ((existingRows as any[]).length > 0) {
+            // Actualizar configuración existente
+            const existingId = (existingRows as any[])[0].id;
+            console.log(`🔄 Actualizando configuración existente ID: ${existingId}`);
 
-        // Obtener la configuración recién creada
-        const [rows] = await connection.execute(
-            'SELECT * FROM q_configurations WHERE id = ?',
-            [insertId]
-        );
+            await connection.execute(
+                'UPDATE q_configurations SET is_active = FALSE WHERE is_active = TRUE AND id != ?',
+                [existingId]
+            );
 
-        const newConfig = (rows as QConfig[])[0];
+            await connection.execute(
+                `UPDATE q_configurations 
+                 SET sprints_per_q = ?, sprint_duration = ?, start_date = ?, 
+                     end_date = ?, is_active = TRUE, updated_at = NOW()
+                 WHERE id = ?`,
+                [
+                    qConfig.sprintsPerQ,
+                    qConfig.sprintDuration,
+                    startDateStr,
+                    endDateStr,
+                    existingId
+                ]
+            );
 
-        const responseData = {
-            id: newConfig.id,
-            quarter: newConfig.quarter,
-            year: newConfig.year,
-            sprintsPerQ: newConfig.sprints_per_q,
-            sprintDuration: newConfig.sprint_duration,
-            startDate: newConfig.start_date,
-            endDate: newConfig.end_date,
-            isActive: newConfig.is_active,
-            createdAt: newConfig.created_at,
-            updatedAt: newConfig.updated_at
-        };
+            const [updatedRows] = await connection.execute(
+                'SELECT * FROM q_configurations WHERE id = ?',
+                [existingId]
+            );
 
-        console.log('📤 Enviando respuesta:', responseData);
+            const updatedConfig = (updatedRows as QConfig[])[0];
+            console.log('✅ Configuración actualizada');
 
-        return NextResponse.json({
-            success: true,
-            message: 'Configuración de Q guardada correctamente',
-            data: responseData
-        });
+            return NextResponse.json({
+                success: true,
+                message: 'Configuración de Q actualizada correctamente',
+                data: {
+                    id: updatedConfig.id,
+                    quarter: updatedConfig.quarter,
+                    year: updatedConfig.year,
+                    sprintsPerQ: updatedConfig.sprints_per_q,
+                    sprintDuration: updatedConfig.sprint_duration,
+                    startDate: updatedConfig.start_date,
+                    endDate: updatedConfig.end_date,
+                    isActive: updatedConfig.is_active,
+                    createdAt: updatedConfig.created_at,
+                    updatedAt: updatedConfig.updated_at
+                }
+            });
+        } else {
+            // Insertar nueva configuración
+            console.log('💾 Insertando nueva configuración...');
+
+            await connection.execute(
+                'UPDATE q_configurations SET is_active = FALSE WHERE is_active = TRUE'
+            );
+
+            const [result] = await connection.execute(
+                `INSERT INTO q_configurations
+                 (quarter, year, sprints_per_q, sprint_duration, start_date, end_date, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?, TRUE)`,
+                [
+                    qConfig.quarter,
+                    qConfig.year,
+                    qConfig.sprintsPerQ,
+                    qConfig.sprintDuration,
+                    startDateStr,
+                    endDateStr
+                ]
+            );
+
+            const insertId = (result as any).insertId;
+            console.log(`🎉 Configuración insertada con ID: ${insertId}`);
+
+            const [rows] = await connection.execute(
+                'SELECT * FROM q_configurations WHERE id = ?',
+                [insertId]
+            );
+
+            const newConfig = (rows as QConfig[])[0];
+
+            return NextResponse.json({
+                success: true,
+                message: 'Configuración de Q guardada correctamente',
+                data: {
+                    id: newConfig.id,
+                    quarter: newConfig.quarter,
+                    year: newConfig.year,
+                    sprintsPerQ: newConfig.sprints_per_q,
+                    sprintDuration: newConfig.sprint_duration,
+                    startDate: newConfig.start_date,
+                    endDate: newConfig.end_date,
+                    isActive: newConfig.is_active,
+                    createdAt: newConfig.created_at,
+                    updatedAt: newConfig.updated_at
+                }
+            });
+        }
 
     } catch (error: any) {
         console.error('❌ Error en API q-configuration:', error);
 
-        // Manejo específico de errores
         if (error.code === 'ER_NO_SUCH_TABLE') {
             return NextResponse.json(
                 { error: 'La tabla q_configurations no existe. Ejecuta el script SQL primero.' },
@@ -145,27 +194,6 @@ export async function POST(request: Request) {
             return NextResponse.json(
                 { error: 'No se puede conectar a la base de datos. Verifica que MySQL esté ejecutándose.' },
                 { status: 500 }
-            );
-        }
-
-        if (error.code === 'ER_ACCESS_DENIED_ERROR') {
-            return NextResponse.json(
-                { error: 'Acceso denegado a la base de datos. Verifica usuario y contraseña.' },
-                { status: 500 }
-            );
-        }
-
-        if (error.code === 'ER_BAD_DB_ERROR') {
-            return NextResponse.json(
-                { error: 'La base de datos no existe. Verifica el nombre de la base de datos.' },
-                { status: 500 }
-            );
-        }
-
-        if (error.code === 'ER_TRUNCATED_WRONG_VALUE') {
-            return NextResponse.json(
-                { error: 'Formato de fecha incorrecto. Las fechas deben estar en formato YYYY-MM-DD.' },
-                { status: 400 }
             );
         }
 
@@ -183,6 +211,7 @@ export async function POST(request: Request) {
         }
     }
 }
+
 
 export async function GET() {
     let connection;
