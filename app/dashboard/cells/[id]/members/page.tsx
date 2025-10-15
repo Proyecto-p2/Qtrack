@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useSession } from "next-auth/react";
 
@@ -17,6 +18,22 @@ interface Member {
   cellId: number;
   workload: number;
   currentLoad: number;
+  user_id?: string;
+  user_info?: {
+    id: string;
+    fullName: string;
+    username: string;
+    email: string;
+    role: string;
+  };
+}
+
+interface User {
+  id: string;
+  usuario: string;
+  nombre: string;
+  correo: string;
+  rol: string;
 }
 
 export default function MembersPage() {
@@ -26,13 +43,14 @@ export default function MembersPage() {
 
   const [members, setMembers] = useState<Member[]>([]);
   const [knowledgeLines, setKnowledgeLines] = useState<string[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadInputs, setLoadInputs] = useState<{ [key: number]: string }>({});
 
   // Modal
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [role, setRole] = useState("");
   const [knowledgeLine, setKnowledgeLine] = useState("");
   const [workload, setWorkload] = useState<string>("");
@@ -68,28 +86,47 @@ export default function MembersPage() {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("/api/admin/users", { cache: "no-store" });
+      if (!res.ok) throw new Error("Error al obtener usuarios");
+      const data = await res.json();
+      setUsers(data.users || []);
+    } catch (err) {
+      console.error("Error al obtener usuarios", err);
+    }
+  };
+
   useEffect(() => {
     if (!session) return;
     fetchMembers();
     fetchKnowledgeLines();
+    fetchUsers();
   }, [id, session]);
 
   const handleAddMember = async () => {
-    if (!name || !role || !knowledgeLine) return alert("Completa todos los campos");
+    if (!selectedUserId || !role || !knowledgeLine) {
+      alert("Completa todos los campos");
+      return;
+    }
+    
+    const selectedUser = users.find(u => u.id === selectedUserId);
+    
     try {
       const res = await fetch(`/api/members`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name,
+          name: selectedUser?.nombre || "",
           role,
           knowledgeLine,
           cellId: Number(id),
-          workload: workload ? Number(workload) : 0
+          workload: workload ? Number(workload) : 0,
+          userId: selectedUserId
         }),
       });
       if (!res.ok) throw new Error("Error al agregar miembro");
-      setName("");
+      setSelectedUserId("");
       setRole("");
       setKnowledgeLine("");
       setWorkload("");
@@ -148,8 +185,22 @@ export default function MembersPage() {
             </DialogHeader>
             <div className="space-y-4 py-2">
               <div>
-                <label className="block text-sm font-medium mb-1">Nombre</label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} />
+                <label className="block text-sm font-medium mb-1">Usuario</label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un usuario" />
+                  </SelectTrigger>
+                  <SelectContent className="max-w-[400px]">
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id} className="text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.nombre}</span>
+                          <span className="text-xs text-muted-foreground">@{user.usuario} • {user.rol}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Rol</label>
@@ -198,9 +249,23 @@ export default function MembersPage() {
           {members.map((member) => (
             <Card key={member.id}>
               <CardHeader>
-                <CardTitle>{member.name}</CardTitle>
+                <CardTitle>
+                  <div className="flex flex-col">
+                    <span>{member.name}</span>
+                    {member.user_info && (
+                      <span className="text-sm text-muted-foreground font-normal">
+                        @{member.user_info.username} • {member.user_info.email}
+                      </span>
+                    )}
+                  </div>
+                </CardTitle>
                 <CardDescription>
-                  <Badge>{member.role}</Badge>
+                  <div className="flex gap-2">
+                    <Badge>{member.role}</Badge>
+                    {member.user_info && (
+                      <Badge variant="outline">{member.user_info.role}</Badge>
+                    )}
+                  </div>
                 </CardDescription>
               </CardHeader>
               <CardContent>

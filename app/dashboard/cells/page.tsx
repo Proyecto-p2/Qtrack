@@ -28,10 +28,17 @@ interface Cell {
   name: string;
   tribeName: string;
   agileCoachName: string;
+  agile_coach_user_id?: string;
   memberCount: number;
   costPerSprint: number;
   status: "active" | "inactive" | "planning";
   sprints?: Sprint[];
+  agileCoach_info?: {
+    id: string;
+    fullName: string;
+    username: string;
+    email: string;
+  };
 }
 
 interface Tribe {
@@ -39,16 +46,25 @@ interface Tribe {
   name: string;
 }
 
+interface User {
+  id: string;
+  usuario: string;
+  nombre: string;
+  correo: string;
+  rol: string;
+}
+
 export default function CellsPage() {
   const router = useRouter();
   const [cells, setCells] = useState<Cell[]>([]);
   const [tribes, setTribes] = useState<Tribe[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [open, setOpen] = useState(false);
 
   const [name, setName] = useState("");
   const [tribeName, setTribeName] = useState("");
-  const [agileCoachName, setAgileCoachName] = useState("");
+  const [agileCoachUserId, setAgileCoachUserId] = useState("");
   const [costPerSprint, setCostPerSprint] = useState(0);
 
   const THRESHOLD = 0.7; // 70% completadas mínimo
@@ -78,25 +94,41 @@ export default function CellsPage() {
     setTribes(data.tribes || []);
   };
 
+  const fetchUsers = async () => {
+    const res = await fetch("/api/admin/users");
+    const data = await res.json();
+    setUsers(data.users || []);
+  };
+
   useEffect(() => {
     fetchCells();
     fetchTribes();
+    fetchUsers();
   }, []);
 
   const handleCreate = async () => {
-    if (!name.trim() || !tribeName.trim() || !agileCoachName.trim() || !costPerSprint) {
+    if (!name.trim() || !tribeName.trim() || !agileCoachUserId.trim() || !costPerSprint) {
       alert("Todos los campos son obligatorios");
       return;
     }
 
+    const selectedUser = users.find(u => u.id === agileCoachUserId);
+
     const res = await fetch("/api/cells", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, tribeName, agileCoachName, costPerSprint, status: "planning" }),
+      body: JSON.stringify({ 
+        name, 
+        tribeName, 
+        agileCoachUserId,
+        agileCoachName: selectedUser?.nombre || "", // Por compatibilidad
+        costPerSprint, 
+        status: "planning" 
+      }),
     });
 
     if (res.ok) {
-      setName(""); setTribeName(""); setAgileCoachName(""); setCostPerSprint(0); setOpen(false);
+      setName(""); setTribeName(""); setAgileCoachUserId(""); setCostPerSprint(0); setOpen(false);
       fetchCells();
     } else {
       console.error("Error al crear célula", await res.text());
@@ -165,7 +197,21 @@ export default function CellsPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Agile Coach</label>
-                  <Input value={agileCoachName} onChange={(e) => setAgileCoachName(e.target.value)} placeholder="Nombre del Agile Coach" />
+                  <Select value={agileCoachUserId} onValueChange={setAgileCoachUserId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un Agile Coach" />
+                    </SelectTrigger>
+                    <SelectContent className="max-w-[400px]">
+                      {users.filter(user => user.rol === 'agile_coach' || user.rol === 'admin').map((user) => (
+                        <SelectItem key={user.id} value={user.id} className="text-sm">
+                          <div className="flex flex-col">
+                            <span className="font-medium">{user.nombre}</span>
+                            <span className="text-xs text-muted-foreground">@{user.usuario} • {user.rol}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Costo por Sprint</label>

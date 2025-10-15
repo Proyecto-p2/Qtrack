@@ -8,7 +8,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Play, Pause, CheckCircle, Clock, Pencil } from "lucide-react"
+import { Play, Pause, CheckCircle, Clock, Pencil, User, Calendar, Target } from "lucide-react"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+
+interface UserTask {
+  id: number
+  title: string
+  description: string
+  status: "todo" | "in_progress" | "review" | "done" | "blocked"
+  priority: "low" | "medium" | "high" | "critical"
+  story_points: number
+  assigned_user_name: string
+  assigned_username: string
+  estimated_hours: number
+  actual_hours: number
+}
 
 interface Task {
   id: number
@@ -27,6 +41,7 @@ interface Sprint {
   plannedPoints: number
   status: "planning" | "active" | "completed" | "cancelled"
   tasks: Task[]
+  userTasks?: UserTask[] // Nuevas tareas del sistema
 }
 
 interface Cell {
@@ -40,11 +55,26 @@ interface QuarterOption {
   year: number
 }
 
+// Colores para estados y prioridades
+const statusColors = {
+  todo: "bg-gray-100 text-gray-800",
+  in_progress: "bg-blue-100 text-blue-800", 
+  review: "bg-yellow-100 text-yellow-800",
+  done: "bg-green-100 text-green-800",
+  blocked: "bg-red-100 text-red-800"
+};
+
+const priorityColors = {
+  low: "bg-green-100 text-green-800",
+  medium: "bg-yellow-100 text-yellow-800", 
+  high: "bg-orange-100 text-orange-800",
+  critical: "bg-red-100 text-red-800"
+};
+
 export default function SprintsPage() {
   const [cells, setCells] = useState<Cell[]>([])
   const [sprints, setSprints] = useState<Sprint[]>([])
   const [quarters, setQuarters] = useState<QuarterOption[]>([])
-
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
 
   useEffect(() => {
@@ -64,7 +94,28 @@ export default function SprintsPage() {
       const qData = await qRes.json()
 
       setCells(cellsData.cells || [])
-      setSprints(sprintsData.sprints || [])
+      
+      // Cargar tareas para cada sprint
+      const sprintsWithUserTasks = await Promise.all(
+        (sprintsData.sprints || []).map(async (sprint: Sprint) => {
+          try {
+            const tasksRes = await fetch(`/api/user-tasks?sprintId=${sprint.id}`)
+            const tasksData = await tasksRes.json()
+            return {
+              ...sprint,
+              userTasks: tasksData.tasks || []
+            }
+          } catch (error) {
+            console.error(`Error loading tasks for sprint ${sprint.id}:`, error)
+            return {
+              ...sprint,
+              userTasks: []
+            }
+          }
+        })
+      )
+      
+      setSprints(sprintsWithUserTasks)
 
       if (Array.isArray(qData)) {
         setQuarters(qData)
@@ -332,24 +383,102 @@ export default function SprintsPage() {
                         </div>
                       </div>
 
-                      {/* LISTA DE TASKS FUERA DEL MODAL */}
-                      <div className="mt-3 space-y-2">
-                        {s.tasks.map(task => (
-                          <div key={task.id} className="flex justify-between items-center border p-2 rounded">
-                            <div className={task.status === "done" ? "line-through text-gray-400" : ""}>
-                              {task.name}
+                      {/* VISTA CONDICIONAL DE TAREAS */}
+                      <div className="mt-4">
+                        {/* Solo mostrar estadísticas si hay tareas */}
+                        {s.userTasks && s.userTasks.length > 0 ? (
+                          <div className="space-y-4">
+                            {/* Estadísticas del Sprint */}
+                            <div className="grid grid-cols-4 gap-4">
+                              <div className="bg-blue-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-blue-600">Total Tareas</div>
+                                <div className="text-2xl font-bold text-blue-700">
+                                  {s.userTasks.length}
+                                </div>
+                              </div>
+                              <div className="bg-green-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-green-600">Completadas</div>
+                                <div className="text-2xl font-bold text-green-700">
+                                  {s.userTasks.filter(t => t.status === 'done').length}
+                                </div>
+                              </div>
+                              <div className="bg-yellow-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-yellow-600">En Progreso</div>
+                                <div className="text-2xl font-bold text-yellow-700">
+                                  {s.userTasks.filter(t => t.status === 'in_progress').length}
+                                </div>
+                              </div>
+                              <div className="bg-purple-50 p-3 rounded-lg">
+                                <div className="text-sm font-medium text-purple-600">Story Points</div>
+                                <div className="text-2xl font-bold text-purple-700">
+                                  {s.userTasks.reduce((sum, t) => sum + (t.story_points || 0), 0)}
+                                </div>
+                              </div>
                             </div>
-                            {task.status !== "done" && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => handleTaskStatusChange(s, task.id, "done")}
-                              >
-                                Marcar como done
-                              </Button>
-                            )}
+
+                            {/* Tabla de Tareas */}
+                            <div>
+                              <h4 className="font-semibold mb-3 flex items-center gap-2">
+                                <Target className="h-4 w-4" />
+                                Tareas del Sprint
+                              </h4>
+                              <Table>
+                                <TableHeader>
+                                  <TableRow>
+                                    <TableHead>Tarea</TableHead>
+                                    <TableHead>Asignado</TableHead>
+                                    <TableHead>Estado</TableHead>
+                                    <TableHead>Prioridad</TableHead>
+                                    <TableHead>Puntos</TableHead>
+                                  </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                  {s.userTasks.map(task => (
+                                    <TableRow key={task.id}>
+                                      <TableCell>
+                                        <div>
+                                          <div className="font-medium">{task.title}</div>
+                                          <div className="text-sm text-muted-foreground truncate max-w-xs">
+                                            {task.description}
+                                          </div>
+                                        </div>
+                                      </TableCell>
+                                      <TableCell>
+                                        {task.assigned_user_name ? (
+                                          <div className="flex items-center gap-2">
+                                            <User className="h-4 w-4" />
+                                            <div>
+                                              <div className="font-medium">{task.assigned_user_name}</div>
+                                              <div className="text-sm text-muted-foreground">@{task.assigned_username}</div>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <span className="text-muted-foreground italic">Sin asignar</span>
+                                        )}
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge className={statusColors[task.status as keyof typeof statusColors]}>
+                                          {task.status.replace('_', ' ')}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>
+                                        <Badge className={priorityColors[task.priority as keyof typeof priorityColors]}>
+                                          {task.priority}
+                                        </Badge>
+                                      </TableCell>
+                                      <TableCell>{task.story_points}</TableCell>
+                                    </TableRow>
+                                  ))}
+                                </TableBody>
+                              </Table>
+                            </div>
                           </div>
-                        ))}
+                        ) : (
+                          /* Sprint sin tareas - solo mostrar mensaje simple */
+                          <div className="text-center py-4 text-muted-foreground">
+                            <p className="text-sm">Sin tareas asignadas</p>
+                          </div>
+                        )}
                       </div>
 
                     </Card>
