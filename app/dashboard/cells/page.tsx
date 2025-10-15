@@ -156,14 +156,32 @@ export default function CellsPage() {
       totalTasks += s.tasks.length;
       doneTasks += s.tasks.filter(t => t.status === "done").length;
     });
-    if (totalTasks === 0) return 0;
-    return doneTasks / totalTasks;
+    if (totalTasks === 0) return { percentage: 0, doneTasks: 0, totalTasks: 0 };
+    return { 
+      percentage: doneTasks / totalTasks, 
+      doneTasks, 
+      totalTasks 
+    };
   };
 
-  const getCompletionColor = (cell: Cell) => {
-    const completion = calculateCompletion(cell);
-    return completion < THRESHOLD ? "destructive" : "default";
+  const getCompletionColor = (completion: number) => {
+    if (completion >= 0.9) return "default"; // Verde para 90%+
+    if (completion >= THRESHOLD) return "secondary"; // Azul para 70-89%
+    return "destructive"; // Rojo para menos de 70%
   };
+
+  const getCompletionIcon = (completion: number) => {
+    if (completion >= 0.9) return "🟢";
+    if (completion >= THRESHOLD) return "🟡";
+    return "🔴";
+  };
+
+  // Calcular estadísticas generales
+  const totalCells = filteredCells.length;
+  const cellsAboveThreshold = filteredCells.filter(cell => calculateCompletion(cell).percentage >= THRESHOLD).length;
+  const averageCompletion = totalCells > 0 
+    ? filteredCells.reduce((sum, cell) => sum + calculateCompletion(cell).percentage, 0) / totalCells 
+    : 0;
 
   return (
     <div className="space-y-4">
@@ -227,6 +245,54 @@ export default function CellsPage() {
         </Dialog>
       </div>
 
+      {/* Estadísticas de cumplimiento */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Células</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalCells}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Cumplimiento Promedio</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{(averageCompletion * 100).toFixed(1)}%</div>
+            <p className="text-xs text-muted-foreground">
+              {getCompletionIcon(averageCompletion)} Meta: 70%
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Células sobre Meta</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{cellsAboveThreshold}</div>
+            <p className="text-xs text-muted-foreground">
+              De {totalCells} células ({totalCells > 0 ? ((cellsAboveThreshold / totalCells) * 100).toFixed(1) : 0}%)
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Estado General</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {averageCompletion >= 0.9 ? "🟢 Excelente" : 
+               averageCompletion >= THRESHOLD ? "🟡 Bueno" : "🔴 Necesita Mejora"}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Basado en promedio general
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filtro */}
       <Card>
         <CardHeader><CardTitle>Filtros</CardTitle></CardHeader>
@@ -256,10 +322,19 @@ export default function CellsPage() {
             </TableHeader>
             <TableBody>
               {filteredCells.map((cell) => {
-                const completion = calculateCompletion(cell);
+                const completionData = calculateCompletion(cell);
+                const completion = completionData.percentage;
                 return (
                   <TableRow key={cell.id}>
-                    <TableCell className="font-medium">{cell.name}</TableCell>
+                    <TableCell className="font-medium">
+                      <Button 
+                        variant="link" 
+                        className="p-0 h-auto font-medium text-left"
+                        onClick={() => router.push(`/dashboard/cells/${cell.id}`)}
+                      >
+                        {cell.name}
+                      </Button>
+                    </TableCell>
                     <TableCell>{cell.tribeName}</TableCell>
                     <TableCell>{cell.agileCoachName}</TableCell>
                     <TableCell>
@@ -267,14 +342,28 @@ export default function CellsPage() {
                     </TableCell>
                     <TableCell>${cell.costPerSprint.toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge variant={getCompletionColor(cell) as any}>
-                        {(completion * 100).toFixed(0)}%
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={getCompletionColor(completion) as any}>
+                          {(completion * 100).toFixed(0)}%
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          ({completionData.doneTasks}/{completionData.totalTasks} tareas)
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell>
-                      <Button variant="destructive" size="sm" onClick={() => handleDelete(cell.name)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => router.push(`/dashboard/cells/${cell.id}`)}
+                        >
+                          Detalle
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={() => handleDelete(cell.name)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
