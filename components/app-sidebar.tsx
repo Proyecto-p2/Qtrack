@@ -14,6 +14,8 @@ import {
   Target,
   User,
   CalendarDays,
+  CheckSquare,
+  Activity,
 } from "lucide-react";
 
 import {
@@ -31,15 +33,24 @@ import {
 
 import { useSession } from "next-auth/react";
 
-const menuItems = [
+interface MenuItem {
+  title: string;
+  url: string;
+  icon: React.ComponentType<{ className?: string }>;
+  roles?: string[];
+}
+
+const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
+  { title: "Mi Dashboard", url: "/dashboard/personal", icon: Activity, roles: ["usuario", "agile_coach", "admin"] },
+  { title: "Gestión de Tareas", url: "/dashboard/task-management", icon: CheckSquare, roles: ["agile_coach", "admin"] },
   { title: "Líneas de Conocimiento", url: "/dashboard/knowledge-lines", icon: Target },
   { title: "Células", url: "/dashboard/cells", icon: Building2 },
   { title: "Tribus", url: "/dashboard/tribes", icon: Users },
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
   { title: "Configuración de Q", url: "/dashboard/q-configuration", icon: Settings },
   { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
-  { title: "Usuarios", url: "/dashboard/users", icon: Users },
+  { title: "Usuarios", url: "/dashboard/users", icon: Users, roles: ["admin"] },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
 ];
@@ -73,10 +84,11 @@ export function AppSidebar() {
 
   // Filtrar items del menú basado en el rol del usuario
   const filteredMenuItems = menuItems.filter((item) => {
-    // Solo mostrar "Usuarios" a los administradores
-    if (item.title === "Usuarios") {
-      return userRole === "admin";
+    // Si el item tiene roles específicos, verificar si el usuario tiene acceso
+    if (item.roles) {
+      return item.roles.includes(userRole);
     }
+    // Si no tiene roles específicos, mostrar a todos
     return true;
   });
 

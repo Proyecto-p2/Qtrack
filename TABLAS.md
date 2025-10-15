@@ -174,3 +174,112 @@ CREATE TABLE notifications (
   FOREIGN KEY (userId) REFERENCES usuarios(id) ON DELETE CASCADE,
   FOREIGN KEY (memberId) REFERENCES members(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+Modificacion tabla tribes para almacenar verdaderos usuarios
+ALTER TABLE tribes ADD COLUMN lead_user_id CHAR(36);
+
+-- 2. Agregar la foreign key constraint
+ALTER TABLE tribes ADD CONSTRAINT fk_tribes_lead_user
+  FOREIGN KEY (lead_user_id) REFERENCES usuarios(id);
+
+-- =============================
+-- Modificaciones para cells y members
+-- =============================
+
+-- Modificar tabla cells para usar FK a usuarios para agile coach
+ALTER TABLE cells ADD COLUMN agile_coach_user_id CHAR(36);
+ALTER TABLE cells ADD CONSTRAINT fk_cells_agile_coach 
+  FOREIGN KEY (agile_coach_user_id) REFERENCES usuarios(id);
+
+-- Modificar el tipo de dato para costPerSprint para permitir valores más grandes
+ALTER TABLE cells MODIFY COLUMN costPerSprint DECIMAL(15,2) DEFAULT 0.00;
+
+-- Modificar tabla members para usar FK a usuarios
+ALTER TABLE members ADD COLUMN user_id CHAR(36);
+ALTER TABLE members ADD CONSTRAINT fk_members_user 
+  FOREIGN KEY (user_id) REFERENCES usuarios(id);
+
+-- =============================
+-- Sistema de Tareas y Métricas por Usuario
+-- =============================
+
+-- Crear tabla de tareas individuales (reemplaza el JSON en sprints)
+DROP TABLE IF EXISTS user_tasks;
+CREATE TABLE user_tasks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sprint_id INT NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  story_points INT DEFAULT 0,
+  task_type ENUM('planned', 'unplanned', 'bug', 'technical_debt') DEFAULT 'planned',
+  priority ENUM('low', 'medium', 'high', 'critical') DEFAULT 'medium',
+  status ENUM('todo', 'in_progress', 'review', 'done', 'blocked') DEFAULT 'todo',
+  assigned_to CHAR(36) NULL, -- FK a usuarios
+  knowledge_line_id INT NULL,
+  estimated_hours DECIMAL(5,2) DEFAULT 0,
+  actual_hours DECIMAL(5,2) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
+  FOREIGN KEY (assigned_to) REFERENCES usuarios(id) ON DELETE SET NULL,
+  FOREIGN KEY (knowledge_line_id) REFERENCES knowledge_lines(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla de métricas por usuario
+DROP TABLE IF EXISTS user_metrics;
+CREATE TABLE user_metrics (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id CHAR(36) NOT NULL,
+  sprint_id INT NOT NULL,
+  cell_id INT NOT NULL,
+  tribe_name VARCHAR(255) NOT NULL,
+  
+  -- Métricas de tareas
+  tasks_assigned INT DEFAULT 0,
+  tasks_completed INT DEFAULT 0,
+  tasks_in_progress INT DEFAULT 0,
+  tasks_todo INT DEFAULT 0,
+  tasks_blocked INT DEFAULT 0,
+  
+  -- Métricas de puntos
+  story_points_assigned INT DEFAULT 0,
+  story_points_completed INT DEFAULT 0,
+  
+  -- Métricas de tiempo
+  estimated_hours DECIMAL(8,2) DEFAULT 0,
+  actual_hours DECIMAL(8,2) DEFAULT 0,
+  
+  -- Métricas calculadas
+  completion_rate DECIMAL(5,2) DEFAULT 0, -- % de tareas completadas
+  velocity DECIMAL(8,2) DEFAULT 0, -- story points por hora
+  efficiency DECIMAL(5,2) DEFAULT 0, -- actual vs estimated hours
+  
+  -- Fechas
+  calculated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  FOREIGN KEY (sprint_id) REFERENCES sprints(id) ON DELETE CASCADE,
+  FOREIGN KEY (cell_id) REFERENCES cells(id) ON DELETE CASCADE,
+  
+  UNIQUE KEY unique_user_sprint (user_id, sprint_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Tabla de logs de actividad de tareas
+DROP TABLE IF EXISTS task_activity_logs;
+CREATE TABLE task_activity_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  task_id INT NOT NULL,
+  user_id CHAR(36) NOT NULL,
+  action ENUM('created', 'assigned', 'status_changed', 'updated', 'time_logged') NOT NULL,
+  old_value TEXT NULL,
+  new_value TEXT NULL,
+  hours_logged DECIMAL(5,2) DEFAULT 0,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  FOREIGN KEY (task_id) REFERENCES user_tasks(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

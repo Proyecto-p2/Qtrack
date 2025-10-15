@@ -17,9 +17,9 @@ async function connectDB() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, tribeName, agileCoachName, costPerSprint = 0.0, status = "planning" } = body;
+    const { name, tribeName, agileCoachName, agileCoachUserId, costPerSprint = 0.0, status = "planning" } = body;
 
-    if (!name || !tribeName || !agileCoachName || costPerSprint === undefined) {
+    if (!name || !tribeName || (!agileCoachName && !agileCoachUserId) || costPerSprint === undefined) {
       return NextResponse.json(
         { message: "Faltan datos obligatorios" },
         { status: 400 }
@@ -28,18 +28,31 @@ export async function POST(req: Request) {
 
     const db = await connectDB();
 
-    const [result] = await db.execute(
-      `INSERT INTO cells (name, tribeName, agileCoachName, costPerSprint, status)
-       VALUES (?, ?, ?, ?, ?)`,
-      [name, tribeName, agileCoachName, costPerSprint, status]
-    );
-
-    await db.end();
-
-    return NextResponse.json(
-      { message: "Célula creada exitosamente", data: result },
-      { status: 201 }
-    );
+    // Si tenemos agileCoachUserId, usarlo; si no, usar el método legacy
+    if (agileCoachUserId) {
+      const [result] = await db.execute(
+        `INSERT INTO cells (name, tribeName, agileCoachName, agile_coach_user_id, costPerSprint, status)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [name, tribeName, agileCoachName, agileCoachUserId, costPerSprint, status]
+      );
+      await db.end();
+      return NextResponse.json(
+        { message: "Célula creada exitosamente", data: result },
+        { status: 201 }
+      );
+    } else {
+      // Método legacy
+      const [result] = await db.execute(
+        `INSERT INTO cells (name, tribeName, agileCoachName, costPerSprint, status)
+         VALUES (?, ?, ?, ?, ?)`,
+        [name, tribeName, agileCoachName, costPerSprint, status]
+      );
+      await db.end();
+      return NextResponse.json(
+        { message: "Célula creada exitosamente", data: result },
+        { status: 201 }
+      );
+    }
   } catch (error) {
     console.error("Error creando célula:", error);
     return NextResponse.json(
@@ -53,14 +66,32 @@ export async function POST(req: Request) {
 export async function GET() {
   try {
     const db = await connectDB();
-    const [rows] = await db.execute("SELECT * FROM cells");
+    
+    // JOIN con usuarios para obtener información completa del agile coach
+    const [rows] = await db.execute(`
+      SELECT 
+        c.*,
+        u.nombre as coach_full_name,
+        u.usuario as coach_username,
+        u.correo as coach_email
+      FROM cells c
+      LEFT JOIN usuarios u ON c.agile_coach_user_id = u.id
+    `);
+    
     await db.end();
 
     const normalized = (rows as any[]).map((row) => ({
       id: row.id,
       name: row.name,
       tribeName: row.tribeName,
-      agileCoachName: row.agileCoachName,
+      agileCoachName: row.coach_full_name || row.agileCoachName, // Priorizar nombre del usuario
+      agile_coach_user_id: row.agile_coach_user_id,
+      agileCoach_info: row.agile_coach_user_id ? {
+        id: row.agile_coach_user_id,
+        fullName: row.coach_full_name,
+        username: row.coach_username,
+        email: row.coach_email
+      } : null,
       costPerSprint: row.costPerSprint,
       status: row.status,
       createdAt: row.createdAt,

@@ -16,28 +16,40 @@ async function connectDB() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, description = "", leadName } = body;
+    const { name, description = "", leadName, leadUserId } = body;
 
-    if (!name || !leadName) {
+    if (!name || (!leadName && !leadUserId)) {
       return NextResponse.json(
-        { message: "Faltan datos obligatorios (name, leadName)" },
+        { message: "Faltan datos obligatorios (name y leadName o leadUserId)" },
         { status: 400 }
       );
     }
 
     const db = await connectDB();
 
-    const [result] = await db.execute(
-      `INSERT INTO tribes (name, description, leadName) VALUES (?, ?, ?)`,
-      [name, description, leadName]
-    );
-
-    await db.end();
-
-    return NextResponse.json(
-      { message: "Tribu creada exitosamente", data: result },
-      { status: 201 }
-    );
+    // Si tenemos leadUserId, usarlo; si no, usar el método legacy con leadName
+    if (leadUserId) {
+      const [result] = await db.execute(
+        `INSERT INTO tribes (name, description, leadName, lead_user_id) VALUES (?, ?, ?, ?)`,
+        [name, description, leadName, leadUserId]
+      );
+      await db.end();
+      return NextResponse.json(
+        { message: "Tribu creada exitosamente", data: result },
+        { status: 201 }
+      );
+    } else {
+      // Método legacy
+      const [result] = await db.execute(
+        `INSERT INTO tribes (name, description, leadName) VALUES (?, ?, ?)`,
+        [name, description, leadName]
+      );
+      await db.end();
+      return NextResponse.json(
+        { message: "Tribu creada exitosamente", data: result },
+        { status: 201 }
+      );
+    }
   } catch (error) {
     console.error("Error creando tribu:", error);
     return NextResponse.json(
@@ -52,7 +64,16 @@ export async function GET() {
   try {
     const db = await connectDB();
 
-    const [rows] = await db.execute("SELECT * FROM tribes");
+    // JOIN con usuarios para obtener información completa del líder
+    const [rows] = await db.execute(`
+      SELECT 
+        t.*,
+        u.nombre as leader_full_name,
+        u.usuario as leader_username,
+        u.correo as leader_email
+      FROM tribes t
+      LEFT JOIN usuarios u ON t.lead_user_id = u.id
+    `);
 
     await db.end();
 
@@ -61,7 +82,14 @@ export async function GET() {
       id: row.id,
       name: row.name,
       description: row.description,
-      leadName: row.leadName || row.lead_name,
+      leadName: row.leader_full_name || row.leadName, // Priorizar nombre completo del usuario
+      lead_user_id: row.lead_user_id,
+      leader_info: row.lead_user_id ? {
+        id: row.lead_user_id,
+        fullName: row.leader_full_name,
+        username: row.leader_username,
+        email: row.leader_email
+      } : null,
       createdAt: row.createdAt || row.created_at,
     }));
 

@@ -6,42 +6,74 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Search } from "lucide-react"
+
+interface User {
+  id: string
+  usuario: string
+  nombre: string
+  correo: string
+  rol: string
+}
 
 interface Tribe {
   id: number
   name: string
   leadName: string
+  lead_user_id?: string
   description?: string
   createdAt: string
+  leader_info?: {
+    id: string
+    fullName: string
+    username: string
+    email: string
+  }
 }
 
 export default function TribesPage() {
   const [tribes, setTribes] = useState<Tribe[]>([])
+  const [users, setUsers] = useState<User[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [open, setOpen] = useState(false)
 
   // Campos formulario
   const [name, setName] = useState("")
-  const [leadName, setLeadName] = useState("")
+  const [leadUserId, setLeadUserId] = useState("")
   const [description, setDescription] = useState("")
 
-  // Cargar tribus desde la API
+  // Cargar tribus y usuarios desde la API
   useEffect(() => {
     const fetchTribes = async () => {
       const res = await fetch("/api/tribes")
       const data = await res.json()
       setTribes(data.tribes || [])
     }
+    
+    const fetchUsers = async () => {
+      const res = await fetch("/api/admin/users")
+      const data = await res.json()
+      setUsers(data.users || [])
+    }
+    
     fetchTribes()
+    fetchUsers()
   }, [])
 
   // Crear nueva tribu
   const handleCreate = async () => {
+    const selectedUser = users.find(u => u.id === leadUserId)
+    
     const res = await fetch("/api/tribes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, leadName, description }),
+      body: JSON.stringify({ 
+        name, 
+        leadUserId, 
+        leadName: selectedUser?.nombre || "", // Por compatibilidad
+        description 
+      }),
     })
 
     if (res.ok) {
@@ -49,14 +81,15 @@ export default function TribesPage() {
       const newTribe: Tribe = {
         id: data.data.insertId || Date.now(),
         name,
-        leadName,
+        leadName: selectedUser?.nombre || "",
+        lead_user_id: leadUserId,
         description,
         createdAt: new Date().toISOString(),
       }
       setTribes((prev) => [...prev, newTribe])
       setOpen(false)
       setName("")
-      setLeadName("")
+      setLeadUserId("")
       setDescription("")
     } else {
       console.error("Error creando tribu", await res.text())
@@ -82,7 +115,8 @@ export default function TribesPage() {
   const filteredTribes = tribes.filter(
     (tribe) =>
       tribe.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tribe.leadName.toLowerCase().includes(searchTerm.toLowerCase())
+      tribe.leadName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (tribe.leader_info?.username && tribe.leader_info.username.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   return (
@@ -108,7 +142,21 @@ export default function TribesPage() {
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Líder</label>
-                <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Ej: Ana García" />
+                <Select value={leadUserId} onValueChange={setLeadUserId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona un usuario" />
+                  </SelectTrigger>
+                  <SelectContent className="max-w-[400px]">
+                    {users.map((user) => (
+                      <SelectItem key={user.id} value={user.id} className="text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{user.nombre}</span>
+                          <span className="text-xs text-muted-foreground">@{user.usuario} • {user.rol}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Descripción</label>
@@ -162,7 +210,16 @@ export default function TribesPage() {
               {filteredTribes.map((tribe) => (
                 <TableRow key={tribe.id}>
                   <TableCell className="font-medium">{tribe.name}</TableCell>
-                  <TableCell>{tribe.leadName}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{tribe.leadName}</span>
+                      {tribe.leader_info && (
+                        <span className="text-sm text-muted-foreground">
+                          @{tribe.leader_info.username} • {tribe.leader_info.email}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{tribe.description || "—"}</TableCell>
                   <TableCell>{new Date(tribe.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell>
