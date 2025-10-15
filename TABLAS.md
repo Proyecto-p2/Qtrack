@@ -70,3 +70,21 @@ CREATE TABLE sprints (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (cell_id) REFERENCES cells(id) ON DELETE CASCADE
 );
+
+Tabla de sprints actualizada: 
+
+CREATE TABLE IF NOT EXISTS sprints (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    cell_id INT NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    quarter VARCHAR(20) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    planned_points INT DEFAULT 0,
+    committed_points INT DEFAULT 0,
+    delivered_points INT DEFAULT 0,
+    status ENUM('planning', 'active', 'completed', 'cancelled') DEFAULT 'planning',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (cell_id) REFERENCES cells(id) ON DELETE CASCADE
+);

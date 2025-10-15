@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   BarChart3,
@@ -14,7 +14,7 @@ import {
   Target,
   User,
   CalendarDays,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   Sidebar,
@@ -27,66 +27,58 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarHeader,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
-import { useSession } from "next-auth/react"
+import { useSession } from "next-auth/react";
 
 const menuItems = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
-   { title: "Líneas de Conocimiento", url: "/dashboard/knowledge-lines", icon: Target },
+  { title: "Líneas de Conocimiento", url: "/dashboard/knowledge-lines", icon: Target },
   { title: "Células", url: "/dashboard/cells", icon: Building2 },
   { title: "Tribus", url: "/dashboard/tribes", icon: Users },
-  // { title: "Métricas", url: "/dashboard/metrics", icon: BarChart3 },
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
+  { title: "Configuración de Q", url: "/dashboard/q-configuration", icon: Settings },
   { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
-  // { title: "Mi Rendimiento", url: "/dashboard/performance", icon: TrendingUp },
-  // { title: "Registro Diario", url: "/dashboard/daily-log", icon: Target },
-  // { title: "Alertas", url: "/dashboard/alerts", icon: AlertTriangle },
-  // { title: "Carga de Datos", url: "/dashboard/upload", icon: Upload },
-  // { title: "Reportes", url: "/dashboard/reports", icon: FileSpreadsheet },
   { title: "Usuarios", url: "/dashboard/users", icon: Users },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
-  
-
-]
+];
 
 export function AppSidebar() {
-  const { data: session, status } = useSession()
+  const { data: session, status } = useSession();
 
   const getRoleLabel = (role: string) => {
     const roles = {
       admin: "Administrador",
-      usuario: "Usuario", 
+      usuario: "Usuario",
       editor: "Editor",
-      agile_coach: "Agile Coach"
-    }
-    return roles[role as keyof typeof roles] || "Usuario"
-  }
+      agile_coach: "Agile Coach",
+    };
+    return roles[role as keyof typeof roles] || "Usuario";
+  };
 
   const getInitials = (name: string) => {
-    if (!name) return "U"
+    if (!name) return "U";
     return name
       .split(" ")
-      .map(n => n[0])
+      .map((n) => n[0])
       .join("")
       .toUpperCase()
-      .slice(0, 2)
-  }
+      .slice(0, 2);
+  };
 
-  // Obtener datos del usuario de la sesión
-  const userRole = (session?.user as any)?.role || "usuario"
-  const userName = session?.user?.name || "Usuario"
-  const userEmail = session?.user?.email || ""
+  const userRole = (session?.user as any)?.role || "usuario";
+  const userName = session?.user?.name || "Usuario";
+  const userEmail = session?.user?.email || "";
 
   // Filtrar items del menú basado en el rol del usuario
-  const filteredMenuItems = menuItems.filter(item => {
+  const filteredMenuItems = menuItems.filter((item) => {
     // Solo mostrar "Usuarios" a los administradores
     if (item.title === "Usuarios") {
-      return userRole === "admin"
+      return userRole === "admin";
     }
-    return true
-  })
+    return true;
+  });
 
   return (
     <Sidebar>
@@ -111,8 +103,9 @@ export function AppSidebar() {
               {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    <a href={item.url}>
-                      <item.icon />
+                    {/* Aquí usamos <a> normal para navegación interna */}
+                    <a href={item.url} className="flex items-center gap-2">
+                      <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </a>
                   </SidebarMenuButton>
@@ -126,19 +119,15 @@ export function AppSidebar() {
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
             <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-              <span className="text-sm font-medium text-white">
-                {getInitials(userName)}
-              </span>
+              <span className="text-sm font-medium text-white">{getInitials(userName)}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{userName}</p>
-              <p className="text-xs text-muted-foreground truncate">
-                {userEmail || "Cargando..."}
-              </p>
+              <p className="text-xs text-muted-foreground truncate">{userEmail || "Cargando..."}</p>
             </div>
           </div>
         </div>
       </SidebarFooter>
     </Sidebar>
-  )
+  );
 }

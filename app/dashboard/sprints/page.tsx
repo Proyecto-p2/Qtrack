@@ -1,526 +1,365 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Progress } from "@/components/ui/progress"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Settings } from "lucide-react"
-import QConfiguration from "@/components/q-configuration"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Plus, Play, Pause, CheckCircle, Clock, Target } from "lucide-react"
+import { Play, Pause, CheckCircle, Clock, Pencil } from "lucide-react"
 
-interface Sprint {
-    id: number
-    name: string
-    cellName: string
-    quarter: string
-    startDate: string
-    endDate: string
-    plannedPoints: number
-    committedPoints: number
-    deliveredPoints: number
-    status: "planning" | "active" | "completed" | "cancelled"
-    progress: number
+interface Task {
+  id: number
+  name: string
+  status: "todo" | "inProgress" | "done"
 }
 
-interface QConfig {
-    id: number
-    quarter: string
-    year: number
-    sprintsPerQ: number
-    sprintDuration: number
-    startDate: string
-    endDate: string
-    isActive: boolean
+interface Sprint {
+  id: number
+  name: string
+  cellId: number
+  cellName: string
+  quarter: string
+  startDate: string
+  endDate: string
+  plannedPoints: number
+  status: "planning" | "active" | "completed" | "cancelled"
+  tasks: Task[]
 }
 
 interface Cell {
-    id: number
-    name: string
-    tribeName: string
-    agileCoachName: string
-    productOwnerName: string
+  id: number
+  name: string
+}
+
+interface QuarterOption {
+  id: number
+  quarter: string
+  year: number
 }
 
 export default function SprintsPage() {
-    const [selectedQuarter, setSelectedQuarter] = useState("")
-    const [showQConfig, setShowQConfig] = useState(false)
-    const [currentQConfig, setCurrentQConfig] = useState<QConfig | null>(null)
-    const [allQuarters, setAllQuarters] = useState<QConfig[]>([])
-    const [cells, setCells] = useState<Cell[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+  const [cells, setCells] = useState<Cell[]>([])
+  const [sprints, setSprints] = useState<Sprint[]>([])
+  const [quarters, setQuarters] = useState<QuarterOption[]>([])
 
-    // Cargar datos iniciales
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setIsLoading(true)
+  const [editingSprint, setEditingSprint] = useState<Sprint | null>(null)
 
-                // Cargar configuración actual de Q
-                const configResponse = await fetch('/api/q-configuration')
-                if (configResponse.ok) {
-                    const config = await configResponse.json()
-                    setCurrentQConfig(config)
-                }
+  useEffect(() => {
+    fetchData()
+  }, [])
 
-                // Cargar todos los Qs para el selector
-                const quartersResponse = await fetch('/api/q-configuration/all')
-                if (quartersResponse.ok) {
-                    const quartersData = await quartersResponse.json()
-                    setAllQuarters(quartersData)
-                    if (quartersData.length > 0 && !selectedQuarter) {
-                        const activeQ = quartersData.find((q: QConfig) => q.isActive) || quartersData[0]
-                        setSelectedQuarter(`${activeQ.year}-${activeQ.quarter}`)
-                    }
-                }
+  const fetchData = async () => {
+    try {
+      const [cellsRes, sprintsRes, qRes] = await Promise.all([
+        fetch("/api/cells"),
+        fetch("/api/sprints"),
+        fetch("/api/q-configuration")
+      ])
 
-                // Cargar células
-                const cellsResponse = await fetch('/api/cells')
-                if (cellsResponse.ok) {
-                    const cellsData = await cellsResponse.json()
-                    setCells(cellsData.cells || cellsData)
-                }
-            } catch (error) {
-                console.error('Error fetching data:', error)
-            } finally {
-                setIsLoading(false)
-            }
-        }
+      const cellsData = await cellsRes.json()
+      const sprintsData = await sprintsRes.json()
+      const qData = await qRes.json()
 
-        fetchData()
-    }, [])
+      setCells(cellsData.cells || [])
+      setSprints(sprintsData.sprints || [])
 
-    // Datos de sprints hardcodeados (serán reemplazados por API)
-    const sprints: Sprint[] = [
-        {
-            id: 1,
-            name: "Sprint 25",
-            cellName: "Célula Frontend Alpha",
-            quarter: "2024-Q1",
-            startDate: "2024-02-14",
-            endDate: "2024-02-28",
-            plannedPoints: 40,
-            committedPoints: 38,
-            deliveredPoints: 0,
-            status: "active",
-            progress: 65,
-        },
-        {
-            id: 2,
-            name: "Sprint 24",
-            cellName: "Célula Frontend Alpha",
-            quarter: "2024-Q1",
-            startDate: "2024-01-30",
-            endDate: "2024-02-13",
-            plannedPoints: 42,
-            committedPoints: 40,
-            deliveredPoints: 35,
-            status: "completed",
-            progress: 100,
-        },
-        {
-            id: 3,
-            name: "Sprint 25",
-            cellName: "Célula Backend Beta",
-            quarter: "2024-Q1",
-            startDate: "2024-02-14",
-            endDate: "2024-02-28",
-            plannedPoints: 35,
-            committedPoints: 35,
-            deliveredPoints: 0,
-            status: "active",
-            progress: 45,
-        },
-        {
-            id: 4,
-            name: "Sprint 26",
-            cellName: "Célula DevOps Gamma",
-            quarter: "2024-Q1",
-            startDate: "2024-03-01",
-            endDate: "2024-03-15",
-            plannedPoints: 30,
-            committedPoints: 0,
-            deliveredPoints: 0,
-            status: "planning",
-            progress: 0,
-        },
-        {
-            id: 5,
-            name: "Sprint 25",
-            cellName: "Célula QA Delta",
-            quarter: "2024-Q1",
-            startDate: "2024-02-14",
-            endDate: "2024-02-28",
-            plannedPoints: 25,
-            committedPoints: 28,
-            deliveredPoints: 0,
-            status: "active",
-            progress: 80,
-        },
-    ]
+      if (Array.isArray(qData)) {
+        setQuarters(qData)
+      } else {
+        setQuarters([{ id: qData.id || 1, quarter: qData.quarter, year: qData.year }])
+      }
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case "active":
-                return "default"
-            case "completed":
-                return "secondary"
-            case "planning":
-                return "outline"
-            case "cancelled":
-                return "destructive"
-            default:
-                return "default"
-        }
+    } catch (error) {
+      console.error("Error cargando datos iniciales:", error)
     }
+  }
 
-    const getStatusText = (status: string) => {
-        switch (status) {
-            case "active":
-                return "Activo"
-            case "completed":
-                return "Completado"
-            case "planning":
-                return "Planificación"
-            case "cancelled":
-                return "Cancelado"
-            default:
-                return status
-        }
+  const handleUpdateSprint = async () => {
+    if (!editingSprint) return
+
+    try {
+      const res = await fetch(`/api/sprints`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingSprint)
+      })
+      const result = await res.json()
+
+      if (res.ok) {
+        setSprints(prev =>
+          prev.map(s => (s.id === editingSprint.id ? editingSprint : s))
+        )
+        setEditingSprint(null)
+      } else {
+        console.error("Error actualizando sprint:", result.error)
+      }
+    } catch (error) {
+      console.error("Error en PUT:", error)
     }
+  }
 
-    const getStatusIcon = (status: string) => {
-        switch (status) {
-            case "active":
-                return <Play className="h-4 w-4" />
-            case "completed":
-                return <CheckCircle className="h-4 w-4" />
-            case "planning":
-                return <Clock className="h-4 w-4" />
-            case "cancelled":
-                return <Pause className="h-4 w-4" />
-            default:
-                return <Clock className="h-4 w-4" />
-        }
+  const handleTaskStatusChange = async (sprint: Sprint, taskId: number, newStatus: Task["status"]) => {
+    const updatedTasks = sprint.tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t)
+
+    try {
+      const res = await fetch("/api/sprints", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...sprint, tasks: updatedTasks })
+      })
+      if (res.ok) {
+        setSprints(prev =>
+          prev.map(sp => sp.id === sprint.id ? { ...sp, tasks: updatedTasks } : sp)
+        )
+      } else {
+        console.error("Error actualizando task")
+      }
+    } catch (err) {
+      console.error(err)
     }
+  }
 
-    const activeSprints = sprints.filter((s) => s.status === "active")
-    const completedSprints = sprints.filter((s) => s.status === "completed")
-    const planningSprints = sprints.filter((s) => s.status === "planning")
+  return (
+    <div className="space-y-6">
+      <h1 className="text-3xl font-bold">Gestión de Sprints</h1>
 
-    if (isLoading) {
-        return <div className="flex items-center justify-center h-64">Cargando...</div>
-    }
-
-    return (
-        <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h2 className="text-3xl font-bold tracking-tight">Gestión de Sprints</h2>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => setShowQConfig(!showQConfig)}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Configurar Q
-                    </Button>
-                    <Dialog>
-                        <DialogTrigger asChild>
-                            <Button>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Nuevo Sprint
-                            </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                                <DialogTitle>Crear Nuevo Sprint</DialogTitle>
-                                <DialogDescription>Configura un nuevo sprint para una célula específica.</DialogDescription>
-                            </DialogHeader>
-                            <div className="grid gap-4 py-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="sprint-name">Nombre del Sprint</Label>
-                                        <Input id="sprint-name" placeholder="Ej: Sprint 26" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="cell">Célula</Label>
-                                        <Select>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Seleccionar célula" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {cells.map(cell => (
-                                                    <SelectItem key={cell.id} value={cell.id.toString()}>
-                                                        {cell.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="quarter">Trimestre</Label>
-                                        <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Seleccionar trimestre" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {allQuarters.map(q => (
-                                                    <SelectItem key={`${q.year}-${q.quarter}`} value={`${q.year}-${q.quarter}`}>
-                                                        {q.year} {q.quarter}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="start-date">Fecha Inicio</Label>
-                                        <Input id="start-date" type="date" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="end-date">Fecha Fin</Label>
-                                        <Input id="end-date" type="date" />
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="planned-points">Puntos Planificados</Label>
-                                        <Input id="planned-points" type="number" placeholder="40" />
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="committed-points">Puntos Comprometidos</Label>
-                                        <Input id="committed-points" type="number" placeholder="38" />
-                                    </div>
-                                </div>
-                                <div className="flex justify-end gap-2 pt-4">
-                                    <Button variant="outline">Cancelar</Button>
-                                    <Button>Crear Sprint</Button>
-                                </div>
-                            </div>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-            </div>
-
-            {showQConfig && (
-                <div className="animate-in fade-in-50">
-                    <QConfiguration onSave={() => {
-                        setShowQConfig(false)
-                        // Recargar datos después de guardar
-                        window.location.reload()
-                    }} />
-                </div>
-            )}
-
-            {currentQConfig && !showQConfig && (
-                <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="font-semibold">Configuración Actual del Trimestre</h3>
-                                <p className="text-sm text-muted-foreground">
-                                    {currentQConfig.quarter} {currentQConfig.year} - {currentQConfig.sprintsPerQ} sprints de {currentQConfig.sprintDuration} semanas
-                                </p>
-                            </div>
-                            <Button variant="outline" size="sm" onClick={() => setShowQConfig(true)}>
-                                <Settings className="mr-2 h-4 w-4" />
-                                Modificar
-                            </Button>
+      {cells.map(cell => {
+        const cellSprints = sprints.filter(s => s.cellId === cell.id)
+        return (
+          <Card key={cell.id}>
+            <CardHeader>
+              <CardTitle>{cell.name}</CardTitle>
+              <CardDescription>Sprints asociados a esta célula</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {cellSprints.length === 0 ? (
+                <p className="text-muted-foreground">No hay sprints registrados.</p>
+              ) : (
+                <div className="grid gap-4">
+                  {cellSprints.map(s => (
+                    <Card key={s.id} className="border p-3">
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className="font-semibold text-lg">{s.name}</h3>
+                          <p className="text-sm text-muted-foreground">
+                            {s.quarter} | {s.startDate} → {s.endDate}
+                          </p>
                         </div>
-                    </CardContent>
-                </Card>
-            )}
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="capitalize flex gap-1 items-center">
+                            {s.status === "active" && <Play className="h-4 w-4" />}
+                            {s.status === "completed" && <CheckCircle className="h-4 w-4" />}
+                            {s.status === "planning" && <Clock className="h-4 w-4" />}
+                            {s.status === "cancelled" && <Pause className="h-4 w-4" />}
+                            {s.status}
+                          </Badge>
 
-            {/* Summary Cards */}
-            <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Sprints Activos</CardTitle>
-                        <Play className="h-4 w-4 text-green-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{activeSprints.length}</div>
-                        <p className="text-xs text-muted-foreground">En ejecución</p>
-                    </CardContent>
-                </Card>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="sm" variant="outline" onClick={() => setEditingSprint(s)}>
+                                <Pencil className="h-4 w-4 mr-1" /> Editar
+                              </Button>
+                            </DialogTrigger>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Completados</CardTitle>
-                        <CheckCircle className="h-4 w-4 text-blue-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{completedSprints.length}</div>
-                        <p className="text-xs text-muted-foreground">Este trimestre</p>
-                    </CardContent>
-                </Card>
+                            {editingSprint && editingSprint.id === s.id && (
+                              <DialogContent className="max-w-2xl">
+                                <DialogHeader>
+                                  <DialogTitle>Editar Sprint</DialogTitle>
+                                </DialogHeader>
 
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">En Planificación</CardTitle>
-                        <Clock className="h-4 w-4 text-yellow-500" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">{planningSprints.length}</div>
-                        <p className="text-xs text-muted-foreground">Próximos</p>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Velocidad Promedio</CardTitle>
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-2xl font-bold">
-                            {Math.round(
-                                completedSprints.reduce((sum, s) => sum + s.deliveredPoints, 0) / completedSprints.length || 0,
-                            )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">puntos por sprint</p>
-                    </CardContent>
-                </Card>
-            </div>
-
-            {/* Active Sprints */}
-            {/* <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Play className="h-5 w-5 text-green-500" />
-                        Sprints Activos
-                    </CardTitle>
-                    <CardDescription>Sprints en ejecución con progreso en tiempo real</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {activeSprints.map((sprint) => (
-                            <div key={sprint.id} className="border rounded-lg p-4">
-                                <div className="flex items-center justify-between mb-3">
+                                <div className="grid gap-4 py-4">
+                                  <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <h4 className="font-semibold">{sprint.name}</h4>
-                                        <p className="text-sm text-muted-foreground">{sprint.cellName}</p>
+                                      <Label>Nombre</Label>
+                                      <Input
+                                        value={editingSprint.name}
+                                        onChange={e =>
+                                          setEditingSprint({ ...editingSprint, name: e.target.value })
+                                        }
+                                      />
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                        <Badge variant="default">Activo</Badge>
-                                        <span className="text-sm text-muted-foreground">
-                      {new Date(sprint.startDate).toLocaleDateString("es-ES")} -{" "}
-                                            {new Date(sprint.endDate).toLocaleDateString("es-ES")}
-                    </span>
+                                    <div>
+                                      <Label>Trimestre</Label>
+                                      <Select
+                                        value={editingSprint.quarter}
+                                        onValueChange={val =>
+                                          setEditingSprint({ ...editingSprint, quarter: val })
+                                        }
+                                      >
+                                        <SelectTrigger>
+                                          <SelectValue placeholder="Seleccionar Q" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {quarters.map(q => (
+                                            <SelectItem key={q.id} value={`${q.year}-${q.quarter}`}>
+                                              {q.year}-{q.quarter}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
                                     </div>
-                                </div>
+                                  </div>
 
-                                <div className="grid gap-4 md:grid-cols-3 mb-3">
-                                    <div className="text-center">
-                                        <p className="text-sm text-muted-foreground">Planificados</p>
-                                        <p className="text-lg font-semibold">{sprint.plannedPoints}</p>
+                                  <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                      <Label>Inicio</Label>
+                                      <Input
+                                        type="date"
+                                        value={editingSprint.startDate}
+                                        onChange={e =>
+                                          setEditingSprint({ ...editingSprint, startDate: e.target.value })
+                                        }
+                                      />
                                     </div>
-                                    <div className="text-center">
-                                        <p className="text-sm text-muted-foreground">Comprometidos</p>
-                                        <p className="text-lg font-semibold">{sprint.committedPoints}</p>
+                                    <div>
+                                      <Label>Fin</Label>
+                                      <Input
+                                        type="date"
+                                        value={editingSprint.endDate}
+                                        onChange={e =>
+                                          setEditingSprint({ ...editingSprint, endDate: e.target.value })
+                                        }
+                                      />
                                     </div>
-                                    <div className="text-center">
-                                        <p className="text-sm text-muted-foreground">Progreso</p>
-                                        <p className="text-lg font-semibold">{sprint.progress}%</p>
+                                    <div>
+                                      <Label>Puntos Planificados</Label>
+                                      <Input
+                                        type="number"
+                                        value={editingSprint.plannedPoints}
+                                        onChange={e =>
+                                          setEditingSprint({
+                                            ...editingSprint,
+                                            plannedPoints: Number(e.target.value)
+                                          })
+                                        }
+                                      />
                                     </div>
-                                </div>
+                                  </div>
 
-                                <div className="space-y-2">
-                                    <div className="flex justify-between text-sm">
-                                        <span>Progreso del Sprint</span>
-                                        <span>{sprint.progress}%</span>
-                                    </div>
-                                    <Progress value={sprint.progress} />
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                </CardContent>
-            </Card> */}
+                                  <div>
+                                    <Label>Estado</Label>
+                                    <Select
+                                      value={editingSprint.status}
+                                      onValueChange={val =>
+                                        setEditingSprint({ ...editingSprint, status: val as Sprint["status"] })
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue placeholder="Seleccionar estado" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="planning">Planning</SelectItem>
+                                        <SelectItem value="active">Active</SelectItem>
+                                        <SelectItem value="completed">Completed</SelectItem>
+                                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
 
-            {/* All Sprints Table */}
-            {/* <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        <Calendar className="h-5 w-5" />
-                        Todos los Sprints
-                    </CardTitle>
-                    <CardDescription>Historial completo de sprints por trimestre</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="mb-4">
-                        <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
-                            <SelectTrigger className="w-48">
-                                <SelectValue placeholder="Seleccionar trimestre" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {allQuarters.map(q => (
-                                    <SelectItem key={`${q.year}-${q.quarter}`} value={`${q.year}-${q.quarter}`}>
-                                        {q.year} {q.quarter}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Sprint</TableHead>
-                                <TableHead>Célula</TableHead>
-                                <TableHead>Fechas</TableHead>
-                                <TableHead>Planificados</TableHead>
-                                <TableHead>Comprometidos</TableHead>
-                                <TableHead>Entregados</TableHead>
-                                <TableHead>Estado</TableHead>
-                                <TableHead>Progreso</TableHead>
-                                <TableHead>Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {sprints.map((sprint) => (
-                                <TableRow key={sprint.id}>
-                                    <TableCell className="font-medium">{sprint.name}</TableCell>
-                                    <TableCell>{sprint.cellName}</TableCell>
-                                    <TableCell className="text-sm">
-                                        {new Date(sprint.startDate).toLocaleDateString("es-ES")} -{" "}
-                                        {new Date(sprint.endDate).toLocaleDateString("es-ES")}
-                                    </TableCell>
-                                    <TableCell>{sprint.plannedPoints}</TableCell>
-                                    <TableCell>{sprint.committedPoints}</TableCell>
-                                    <TableCell>{sprint.deliveredPoints || "-"}</TableCell>
-                                    <TableCell>
-                                        <Badge variant={getStatusColor(sprint.status) as any} className="flex items-center gap-1 w-fit">
-                                            {getStatusIcon(sprint.status)}
-                                            {getStatusText(sprint.status)}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex items-center gap-2">
-                                            <Progress value={sprint.progress} className="w-16 h-2" />
-                                            <span className="text-sm">{sprint.progress}%</span>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Button variant="outline" size="sm">
-                                            Ver Detalles
+                                  <div>
+                                    <Label>Tasks</Label>
+                                    {editingSprint.tasks.map((task, i) => (
+                                      <div key={i} className="flex gap-2 mb-2">
+                                        <Input
+                                          placeholder={`Task #${i + 1}`}
+                                          value={task.name}
+                                          onChange={e => {
+                                            const newTasks = [...editingSprint.tasks]
+                                            newTasks[i].name = e.target.value
+                                            setEditingSprint({ ...editingSprint, tasks: newTasks })
+                                          }}
+                                        />
+                                        <Select
+                                          value={task.status}
+                                          onValueChange={val => {
+                                            const newTasks = [...editingSprint.tasks]
+                                            newTasks[i].status = val as Task["status"]
+                                            setEditingSprint({ ...editingSprint, tasks: newTasks })
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-32">
+                                            <SelectValue placeholder="Estado" />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="todo">Todo</SelectItem>
+                                            <SelectItem value="inProgress">In Progress</SelectItem>
+                                            <SelectItem value="done">Done</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Button
+                                          variant="destructive"
+                                          onClick={() => {
+                                            const newTasks = editingSprint.tasks.filter((_, idx) => idx !== i)
+                                            setEditingSprint({ ...editingSprint, tasks: newTasks })
+                                          }}
+                                        >
+                                          Eliminar
                                         </Button>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card> */}
-        </div>
-    )
+                                      </div>
+                                    ))}
+                                    <Button
+                                      variant="outline"
+                                      onClick={() =>
+                                        setEditingSprint({
+                                          ...editingSprint,
+                                          tasks: [
+                                            ...editingSprint.tasks,
+                                            { id: 0, name: "", status: "todo" }
+                                          ]
+                                        })
+                                      }
+                                    >
+                                      + Agregar Task
+                                    </Button>
+                                  </div>
+
+                                  <div className="flex justify-end gap-2 pt-4">
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() => setEditingSprint(null)}
+                                    >
+                                      Cancelar
+                                    </Button>
+                                    <Button onClick={handleUpdateSprint}>Guardar Cambios</Button>
+                                  </div>
+                                </div>
+                              </DialogContent>
+                            )}
+                          </Dialog>
+                        </div>
+                      </div>
+
+                      {/* LISTA DE TASKS FUERA DEL MODAL */}
+                      <div className="mt-3 space-y-2">
+                        {s.tasks.map(task => (
+                          <div key={task.id} className="flex justify-between items-center border p-2 rounded">
+                            <div className={task.status === "done" ? "line-through text-gray-400" : ""}>
+                              {task.name}
+                            </div>
+                            {task.status !== "done" && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleTaskStatusChange(s, task.id, "done")}
+                              >
+                                Marcar como done
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
 }

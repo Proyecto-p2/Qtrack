@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import mysql from "mysql2/promise";
 import { auth } from "@/lib/auth";
 
-// Configuración de la conexión a la base de datos
 const dbConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
@@ -11,6 +10,12 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'qtrackdb'
 };
+
+interface Task {
+  id?: number;
+  name: string;
+  status: 'todo' | 'inProgress' | 'done';
+}
 
 interface Sprint {
   id?: number;
@@ -23,6 +28,21 @@ interface Sprint {
   committedPoints?: number;
   deliveredPoints?: number;
   status: 'planning' | 'active' | 'completed' | 'cancelled';
+  tasks?: Task[];
+}
+
+// Helper para parsear JSON seguro
+function parseTasksSafe(tasks: any): Task[] {
+  if (!tasks) return [];
+  if (typeof tasks === "string") {
+    try {
+      return JSON.parse(tasks);
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(tasks)) return tasks;
+  return [];
 }
 
 // GET - Obtener sprints
@@ -46,6 +66,7 @@ export async function GET(request: Request) {
         s.committed_points as committedPoints,
         s.delivered_points as deliveredPoints,
         s.status,
+        s.tasks,
         c.name as cellName
       FROM sprints s
       JOIN cells c ON s.cell_id = c.id
@@ -54,163 +75,117 @@ export async function GET(request: Request) {
     const params: any[] = [];
     const conditions: string[] = [];
 
-    if (quarter) {
-      conditions.push('s.quarter = ?');
-      params.push(quarter);
-    }
+    if (quarter) { conditions.push('s.quarter = ?'); params.push(quarter); }
+    if (cellId) { conditions.push('s.cell_id = ?'); params.push(Number(cellId)); }
 
-    if (cellId) {
-      conditions.push('s.cell_id = ?');
-      params.push(parseInt(cellId));
-    }
-
-    if (conditions.length > 0) {
-      query += ' WHERE ' + conditions.join(' AND ');
-    }
-
+    if (conditions.length) query += ' WHERE ' + conditions.join(' AND ');
     query += ' ORDER BY s.start_date ASC';
 
     const [rows] = await connection.execute(query, params);
-    await connection.end();
 
-    return NextResponse.json({ sprints: rows });
+    const sprintsWithTasks = (rows as any[]).map(s => ({
+      ...s,
+      tasks: parseTasksSafe(s.tasks)
+    }));
+
+    await connection.end();
+    return NextResponse.json({ sprints: sprintsWithTasks });
   } catch (error) {
     console.error('Error fetching sprints:', error);
-    return NextResponse.json(
-      { error: 'Error al obtener sprints' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Error al obtener sprints', details: (error as any).message }, { status: 500 });
   }
 }
 
-// POST - Crear o actualizar sprint
+// POST - Crear sprint
 export async function POST(request: Request) {
   try {
     const session = await auth();
-    
-    // Verificar permisos (admin o agile_coach)
     if (!session?.user || !['admin', 'agile_coach'].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: 'No tienes permisos para realizar esta acción' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'No tienes permisos para realizar esta acción' }, { status: 403 });
     }
 
     const sprintData: Sprint = await request.json();
 
     if (!sprintData.cellId || !sprintData.name || !sprintData.quarter || !sprintData.startDate || !sprintData.endDate) {
-      return NextResponse.json(
-        { error: 'Faltan campos requeridos' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Faltan campos requeridos' }, { status: 400 });
     }
 
     const connection = await mysql.createConnection(dbConfig);
+    const tasksJSON = JSON.stringify(sprintData.tasks || []);
 
-    if (sprintData.id) {
-      // Actualizar sprint existente
-      const [result] = await connection.execute(
-        `UPDATE sprints SET 
-          name = ?, 
-          quarter = ?, 
-          start_date = ?, 
-          end_date = ?, 
-          planned_points = ?, 
-          committed_points = ?, 
-          delivered_points = ?, 
-          status = ?
-        WHERE id = ?`,
-        [
-          sprintData.name,
-          sprintData.quarter,
-          sprintData.startDate,
-          sprintData.endDate,
-          sprintData.plannedPoints || 0,
-          sprintData.committedPoints || 0,
-          sprintData.deliveredPoints || 0,
-          sprintData.status,
-          sprintData.id
-        ]
-      );
+    // Guardar solo la fecha en formato YYYY-MM-DD para MySQL
+    const startDate = new Date(sprintData.startDate).toISOString().split('T')[0];
+    const endDate = new Date(sprintData.endDate).toISOString().split('T')[0];
 
-      await connection.end();
-      return NextResponse.json({ message: 'Sprint actualizado exitosamente', id: sprintData.id });
-    } else {
-      // Crear nuevo sprint
-      const [result] = await connection.execute(
-        `INSERT INTO sprints 
-          (cell_id, name, quarter, start_date, end_date, planned_points, committed_points, delivered_points, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          sprintData.cellId,
-          sprintData.name,
-          sprintData.quarter,
-          sprintData.startDate,
-          sprintData.endDate,
-          sprintData.plannedPoints || 0,
-          sprintData.committedPoints || 0,
-          sprintData.deliveredPoints || 0,
-          sprintData.status || 'planning'
-        ]
-      );
-
-      const insertId = (result as any).insertId;
-      await connection.end();
-      return NextResponse.json({ message: 'Sprint creado exitosamente', id: insertId });
-    }
-  } catch (error) {
-    console.error('Error creating/updating sprint:', error);
-    return NextResponse.json(
-      { error: 'Error al procesar el sprint' },
-      { status: 500 }
+    const [result] = await connection.execute(
+      `INSERT INTO sprints 
+        (cell_id, name, quarter, start_date, end_date, planned_points, committed_points, delivered_points, status, tasks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        sprintData.cellId,
+        sprintData.name,
+        sprintData.quarter,
+        startDate,
+        endDate,
+        sprintData.plannedPoints || 0,
+        sprintData.committedPoints || 0,
+        sprintData.deliveredPoints || 0,
+        sprintData.status || 'planning',
+        tasksJSON
+      ]
     );
+
+    const insertId = (result as any).insertId;
+    await connection.end();
+
+    return NextResponse.json({ message: 'Sprint creado exitosamente', id: insertId });
+  } catch (error) {
+    console.error('Error creando sprint:', error);
+    return NextResponse.json({ error: (error as any).message || 'Error al procesar el sprint' }, { status: 500 });
   }
 }
 
-// PUT - Actualizar solo puntos planeados
+// PUT - Actualizar sprint completo
 export async function PUT(request: Request) {
   try {
     const session = await auth();
-    
-    // Verificar permisos (admin o agile_coach)
     if (!session?.user || !['admin', 'agile_coach'].includes(session.user.role)) {
-      return NextResponse.json(
-        { error: 'No tienes permisos para realizar esta acción' },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: 'No tienes permisos' }, { status: 403 });
     }
 
-    const { sprintId, plannedPoints } = await request.json();
-
-    if (!sprintId || plannedPoints === undefined) {
-      return NextResponse.json(
-        { error: 'Sprint ID y puntos planeados son requeridos' },
-        { status: 400 }
-      );
-    }
+    const sprintData: Sprint = await request.json();
+    if (!sprintData.id) return NextResponse.json({ error: 'ID de sprint requerido' }, { status: 400 });
 
     const connection = await mysql.createConnection(dbConfig);
+    const tasksJSON = JSON.stringify(sprintData.tasks || []);
 
-    const [result] = await connection.execute(
-      'UPDATE sprints SET planned_points = ? WHERE id = ?',
-      [plannedPoints, sprintId]
+    const startDate = new Date(sprintData.startDate).toISOString().split('T')[0];
+    const endDate = new Date(sprintData.endDate).toISOString().split('T')[0];
+
+    await connection.execute(
+      `UPDATE sprints SET
+        cell_id = ?, name = ?, quarter = ?, start_date = ?, end_date = ?, 
+        planned_points = ?, committed_points = ?, delivered_points = ?, status = ?, tasks = ?
+       WHERE id = ?`,
+      [
+        sprintData.cellId,
+        sprintData.name,
+        sprintData.quarter,
+        startDate,
+        endDate,
+        sprintData.plannedPoints || 0,
+        sprintData.committedPoints || 0,
+        sprintData.deliveredPoints || 0,
+        sprintData.status,
+        tasksJSON,
+        sprintData.id
+      ]
     );
 
     await connection.end();
-
-    if ((result as any).affectedRows === 0) {
-      return NextResponse.json(
-        { error: 'Sprint no encontrado' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({ message: 'Puntos planeados actualizados exitosamente' });
+    return NextResponse.json({ message: 'Sprint actualizado exitosamente' });
   } catch (error) {
-    console.error('Error updating planned points:', error);
-    return NextResponse.json(
-      { error: 'Error al actualizar puntos planeados' },
-      { status: 500 }
-    );
+    console.error('Error actualizando sprint:', error);
+    return NextResponse.json({ error: (error as any).message || 'Error al actualizar el sprint' }, { status: 500 });
   }
 }
