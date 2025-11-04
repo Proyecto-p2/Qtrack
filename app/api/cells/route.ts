@@ -17,7 +17,14 @@ async function connectDB() {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, tribeName, agileCoachName, agileCoachUserId, costPerSprint = 0.0, status = "planning" } = body;
+    const {
+      name,
+      tribeName,
+      agileCoachName,
+      agileCoachUserId,
+      costPerSprint = 0.0,
+      status = "planning",
+    } = body;
 
     if (!name || !tribeName || (!agileCoachName && !agileCoachUserId) || costPerSprint === undefined) {
       return NextResponse.json(
@@ -35,6 +42,7 @@ export async function POST(req: Request) {
          VALUES (?, ?, ?, ?, ?, ?)`,
         [name, tribeName, agileCoachName, agileCoachUserId, costPerSprint, status]
       );
+
       await db.end();
       return NextResponse.json(
         { message: "Célula creada exitosamente", data: result },
@@ -47,6 +55,7 @@ export async function POST(req: Request) {
          VALUES (?, ?, ?, ?, ?)`,
         [name, tribeName, agileCoachName, costPerSprint, status]
       );
+
       await db.end();
       return NextResponse.json(
         { message: "Célula creada exitosamente", data: result },
@@ -66,32 +75,34 @@ export async function POST(req: Request) {
 export async function GET() {
   try {
     const db = await connectDB();
-    
-    // JOIN con usuarios para obtener información completa del agile coach
+
     const [rows] = await db.execute(`
       SELECT 
         c.*,
-        u.nombre as coach_full_name,
-        u.usuario as coach_username,
-        u.correo as coach_email
+        u.nombre AS coach_full_name,
+        u.usuario AS coach_username,
+        u.correo AS coach_email
       FROM cells c
       LEFT JOIN usuarios u ON c.agile_coach_user_id = u.id
+      ORDER BY c.createdAt DESC
     `);
-    
+
     await db.end();
 
     const normalized = (rows as any[]).map((row) => ({
       id: row.id,
       name: row.name,
       tribeName: row.tribeName,
-      agileCoachName: row.coach_full_name || row.agileCoachName, // Priorizar nombre del usuario
+      agileCoachName: row.coach_full_name || row.agileCoachName,
       agile_coach_user_id: row.agile_coach_user_id,
-      agileCoach_info: row.agile_coach_user_id ? {
-        id: row.agile_coach_user_id,
-        fullName: row.coach_full_name,
-        username: row.coach_username,
-        email: row.coach_email
-      } : null,
+      agileCoach_info: row.agile_coach_user_id
+        ? {
+            id: row.agile_coach_user_id,
+            fullName: row.coach_full_name,
+            username: row.coach_username,
+            email: row.coach_email,
+          }
+        : null,
       costPerSprint: row.costPerSprint,
       status: row.status,
       createdAt: row.createdAt,

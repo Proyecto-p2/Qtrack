@@ -116,7 +116,7 @@ export default function DashboardUpload() {
 
   return (
     <div className="p-6 bg-white rounded-2xl shadow-lg max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 text-center text-black">📂 Dashboard Upload</h2>
+      <h2 className="text-2xl font-bold mb-4 text-center text-black">📂 Carga de excel</h2>
 
       <input
         type="file"

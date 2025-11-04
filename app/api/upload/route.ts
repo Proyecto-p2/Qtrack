@@ -3,11 +3,18 @@ import db from "@/lib/db";
 
 export async function GET() {
   try {
-    const [rows] = await db.query("SELECT * FROM excel_data ORDER BY created_at DESC");
+    // Trae todos los campos, incluidos sprint y celula
+    const [rows] = await db.query(
+      "SELECT id, assigned_to, state, story_points, iteration_path, sprint, celula, created_at FROM excel_data ORDER BY created_at DESC"
+    );
+
     return NextResponse.json(rows);
   } catch (error) {
     console.error("Error obteniendo datos de Excel:", error);
-    return NextResponse.json({ message: "Error al obtener datos" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Error al obtener datos" },
+      { status: 500 }
+    );
   }
 }
 
@@ -20,21 +27,38 @@ export async function POST(request: Request) {
     const state = body.state || "";
     const story_points = body.storyPoints || body.story_points || "";
     const iteration_path = body.iterationPath || body.iteration_path || "";
+    const sprint = body.sprint || "";
+    const celula = body.celula || "";
 
     // Validación mínima
-    if (!assigned_to && !state && !story_points && !iteration_path) {
-      return NextResponse.json({ message: "No se recibieron datos válidos" }, { status: 400 });
+    if (
+      !assigned_to &&
+      !state &&
+      !story_points &&
+      !iteration_path &&
+      !sprint &&
+      !celula
+    ) {
+      return NextResponse.json(
+        { message: "No se recibieron datos válidos" },
+        { status: 400 }
+      );
     }
 
-    // Insertar en DB
+    // Insertar en DB (agregando sprint y celula)
     await db.query(
-      "INSERT INTO excel_data (assigned_to, state, story_points, iteration_path) VALUES (?, ?, ?, ?)",
-      [assigned_to, state, story_points, iteration_path]
+      `INSERT INTO excel_data 
+        (assigned_to, state, story_points, iteration_path, sprint, celula) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [assigned_to, state, story_points, iteration_path, sprint, celula]
     );
 
     return NextResponse.json({ message: "Datos guardados correctamente" });
   } catch (error) {
     console.error("Error guardando datos de Excel:", error);
-    return NextResponse.json({ message: "Error al guardar datos de Excel" }, { status: 500 });
+    return NextResponse.json(
+      { message: "Error al guardar datos de Excel" },
+      { status: 500 }
+    );
   }
 }
