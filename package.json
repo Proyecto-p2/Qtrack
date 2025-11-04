@@ -7,21 +7,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "db:check": "node scripts/check-database.js",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:ci": "jest --coverage --watchAll=false",
-    "test:pages": "jest tests/pages/",
-    "test:components": "jest tests/components/",
-    "test:utils": "jest tests/utils/",
-    "test:integration": "jest tests/integration/",
-    "test:personal": "jest tests/pages/personal.test.jsx",
-    "test:cells": "jest tests/pages/cells.test.jsx",
-    "test:tribes": "jest tests/pages/tribes.test.jsx",
-    "test:sprints": "jest tests/pages/sprints.test.jsx",
-    "test:q-config": "jest tests/pages/q-configuration.test.jsx",
-    "test:sprint-planning": "jest tests/components/sprint-planning.test.jsx"
+    "db:check": "node scripts/check-database.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -82,9 +68,6 @@
     "zod": "3.25.67"
   },
   "devDependencies": {
-    "@babel/core": "^7.28.4",
-    "@babel/preset-env": "^7.28.3",
-    "@babel/preset-react": "^7.27.1",
     "@tailwindcss/postcss": "^4.1.9",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.0",
@@ -92,9 +75,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "babel-jest": "^30.2.0",
     "jest": "^30.2.0",
-    "jest-environment-jsdom": "^30.2.0",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "ts-jest": "^29.4.5",
