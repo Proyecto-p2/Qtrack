@@ -7,20 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Plus, Trash2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-interface Task {
-  id?: number;
-  name: string;
-  status: 'todo' | 'inProgress' | 'done';
-}
 
 interface Sprint {
   id: number;
   cellId: number;
-  tasks: Task[];
+  tasks: { id: number; status: 'todo' | 'inProgress' | 'done'; }[];
 }
 
 interface Cell {
@@ -28,17 +22,10 @@ interface Cell {
   name: string;
   tribeName: string;
   agileCoachName: string;
-  agile_coach_user_id?: string;
   memberCount: number;
   costPerSprint: number;
   status: "active" | "inactive" | "planning";
   sprints?: Sprint[];
-  agileCoach_info?: {
-    id: string;
-    fullName: string;
-    username: string;
-    email: string;
-  };
 }
 
 interface Tribe {
@@ -46,28 +33,17 @@ interface Tribe {
   name: string;
 }
 
-interface User {
-  id: string;
-  usuario: string;
-  nombre: string;
-  correo: string;
-  rol: string;
-}
-
 export default function CellsPage() {
   const router = useRouter();
   const [cells, setCells] = useState<Cell[]>([]);
   const [tribes, setTribes] = useState<Tribe[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [open, setOpen] = useState(false);
+  const [editingCell, setEditingCell] = useState<Cell | null>(null);
 
-  const [name, setName] = useState("");
-  const [tribeName, setTribeName] = useState("");
-  const [agileCoachUserId, setAgileCoachUserId] = useState("");
-  const [costPerSprint, setCostPerSprint] = useState(0);
+  const [editTribeName, setEditTribeName] = useState("");
+  const [editAgileCoach, setEditAgileCoach] = useState("");
 
-  const THRESHOLD = 0.7; // 70% completadas mínimo
+  const THRESHOLD = 0.7;
 
   const fetchCells = async () => {
     const res = await fetch("/api/cells");
@@ -78,7 +54,6 @@ export default function CellsPage() {
       costPerSprint: Number(cell.costPerSprint),
     }));
 
-    // Para cada célula, traer sus sprints y tasks
     for (const cell of parsedCells) {
       const resSprints = await fetch(`/api/sprints?cellId=${cell.id}`);
       const dataSprints = await resSprints.json();
@@ -94,53 +69,44 @@ export default function CellsPage() {
     setTribes(data.tribes || []);
   };
 
-  const fetchUsers = async () => {
-    const res = await fetch("/api/admin/users");
-    const data = await res.json();
-    setUsers(data.users || []);
-  };
-
   useEffect(() => {
     fetchCells();
     fetchTribes();
-    fetchUsers();
   }, []);
-
-  const handleCreate = async () => {
-    if (!name.trim() || !tribeName.trim() || !agileCoachUserId.trim() || !costPerSprint) {
-      alert("Todos los campos son obligatorios");
-      return;
-    }
-
-    const selectedUser = users.find(u => u.id === agileCoachUserId);
-
-    const res = await fetch("/api/cells", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        name, 
-        tribeName, 
-        agileCoachUserId,
-        agileCoachName: selectedUser?.nombre || "", // Por compatibilidad
-        costPerSprint, 
-        status: "planning" 
-      }),
-    });
-
-    if (res.ok) {
-      setName(""); setTribeName(""); setAgileCoachUserId(""); setCostPerSprint(0); setOpen(false);
-      fetchCells();
-    } else {
-      console.error("Error al crear célula", await res.text());
-      alert("Error al crear la célula");
-    }
-  };
 
   const handleDelete = async (name: string) => {
     if (!confirm(`¿Deseas eliminar la célula "${name}"?`)) return;
     const res = await fetch(`/api/cells?name=${encodeURIComponent(name)}`, { method: "DELETE" });
     if (res.ok) fetchCells();
     else console.error("Error eliminando célula", await res.text());
+  };
+
+  const handleEditClick = (cell: Cell) => {
+    setEditingCell(cell);
+    setEditTribeName(cell.tribeName);
+    setEditAgileCoach(cell.agileCoachName);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCell) return;
+    if (!editTribeName.trim() || !editAgileCoach.trim()) {
+      alert("Tribu y Agile Coach son obligatorios");
+      return;
+    }
+
+    const res = await fetch(`/api/cells/${editingCell.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tribeName: editTribeName, agileCoachName: editAgileCoach }),
+    });
+
+    if (res.ok) {
+      setEditingCell(null);
+      fetchCells();
+    } else {
+      console.error("Error al actualizar célula", await res.text());
+      alert("Error al actualizar la célula");
+    }
   };
 
   const filteredCells = cells.filter(
@@ -157,17 +123,13 @@ export default function CellsPage() {
       doneTasks += s.tasks.filter(t => t.status === "done").length;
     });
     if (totalTasks === 0) return { percentage: 0, doneTasks: 0, totalTasks: 0 };
-    return { 
-      percentage: doneTasks / totalTasks, 
-      doneTasks, 
-      totalTasks 
-    };
+    return { percentage: doneTasks / totalTasks, doneTasks, totalTasks };
   };
 
   const getCompletionColor = (completion: number) => {
-    if (completion >= 0.9) return "default"; // Verde para 90%+
-    if (completion >= THRESHOLD) return "secondary"; // Azul para 70-89%
-    return "destructive"; // Rojo para menos de 70%
+    if (completion >= 0.9) return "default";
+    if (completion >= THRESHOLD) return "secondary";
+    return "destructive";
   };
 
   const getCompletionIcon = (completion: number) => {
@@ -176,138 +138,20 @@ export default function CellsPage() {
     return "🔴";
   };
 
-  // Calcular estadísticas generales
-  const totalCells = filteredCells.length;
-  const cellsAboveThreshold = filteredCells.filter(cell => calculateCompletion(cell).percentage >= THRESHOLD).length;
-  const averageCompletion = totalCells > 0 
-    ? filteredCells.reduce((sum, cell) => sum + calculateCompletion(cell).percentage, 0) / totalCells 
-    : 0;
-
   return (
     <div className="space-y-4">
-      {/* Header y modal crear célula */}
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Gestión de Células</h2>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="mr-2 h-4 w-4" /> Nueva Célula
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader><DialogTitle>Crear Nueva Célula</DialogTitle></DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Nombre de la Célula</label>
-                  <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ej: Célula Frontend Zeta" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Tribu</label>
-                  <Select value={tribeName} onValueChange={setTribeName}>
-                    <SelectTrigger><SelectValue placeholder={tribes.length > 0 ? "Selecciona tribu" : "No hay tribus"} /></SelectTrigger>
-                    <SelectContent>
-                      {tribes.map((tribe) => <SelectItem key={tribe.id} value={tribe.name}>{tribe.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Agile Coach</label>
-                  <Select value={agileCoachUserId} onValueChange={setAgileCoachUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecciona un Agile Coach" />
-                    </SelectTrigger>
-                    <SelectContent className="max-w-[400px]">
-                      {users.filter(user => user.rol === 'agile_coach' || user.rol === 'admin').map((user) => (
-                        <SelectItem key={user.id} value={user.id} className="text-sm">
-                          <div className="flex flex-col">
-                            <span className="font-medium">{user.nombre}</span>
-                            <span className="text-xs text-muted-foreground">@{user.usuario} • {user.rol}</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Costo por Sprint</label>
-                  <Input type="number" value={costPerSprint} onChange={(e) => setCostPerSprint(Number(e.target.value))} placeholder="Ej: 5000" />
-                </div>
-              </div>
-              <div className="flex justify-end gap-2 pt-4">
-                <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleCreate}>Crear Célula</Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {/* Estadísticas de cumplimiento */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Células</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalCells}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Cumplimiento Promedio</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{(averageCompletion * 100).toFixed(1)}%</div>
-            <p className="text-xs text-muted-foreground">
-              {getCompletionIcon(averageCompletion)} Meta: 70%
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Células sobre Meta</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{cellsAboveThreshold}</div>
-            <p className="text-xs text-muted-foreground">
-              De {totalCells} células ({totalCells > 0 ? ((cellsAboveThreshold / totalCells) * 100).toFixed(1) : 0}%)
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Estado General</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {averageCompletion >= 0.9 ? "🟢 Excelente" : 
-               averageCompletion >= THRESHOLD ? "🟡 Bueno" : "🔴 Necesita Mejora"}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Basado en promedio general
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Filtro */}
-      <Card>
-        <CardHeader><CardTitle>Filtros</CardTitle></CardHeader>
-        <CardContent>
-          <Input placeholder="Buscar por nombre de célula o tribu..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="max-w-sm" />
-        </CardContent>
-      </Card>
-
-      {/* Tabla */}
       <Card>
         <CardHeader>
           <CardTitle>Células Registradas</CardTitle>
           <CardDescription>{filteredCells.length} células encontradas</CardDescription>
         </CardHeader>
         <CardContent>
+          <Input
+            placeholder="Buscar por nombre de célula o tribu..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-sm mb-4"
+          />
           <Table>
             <TableHeader>
               <TableRow>
@@ -326,19 +170,13 @@ export default function CellsPage() {
                 const completion = completionData.percentage;
                 return (
                   <TableRow key={cell.id}>
-                    <TableCell className="font-medium">
-                      <Button 
-                        variant="link" 
-                        className="p-0 h-auto font-medium text-left"
-                        onClick={() => router.push(`/dashboard/cells/${cell.id}`)}
-                      >
-                        {cell.name}
-                      </Button>
-                    </TableCell>
+                    <TableCell className="font-medium">{cell.name}</TableCell>
                     <TableCell>{cell.tribeName}</TableCell>
                     <TableCell>{cell.agileCoachName}</TableCell>
                     <TableCell>
-                      <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/cells/${cell.id}/members`)}>Ver miembros</Button>
+                      <Button variant="outline" size="sm" onClick={() => router.push(`/dashboard/cells/${cell.id}/members`)}>
+                        Ver miembros
+                      </Button>
                     </TableCell>
                     <TableCell>${cell.costPerSprint.toLocaleString()}</TableCell>
                     <TableCell>
@@ -351,19 +189,11 @@ export default function CellsPage() {
                         </span>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => router.push(`/dashboard/cells/${cell.id}`)}
-                        >
-                          Detalle
-                        </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleDelete(cell.name)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+                    <TableCell className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleEditClick(cell)}>Editar</Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleDelete(cell.name)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -372,6 +202,36 @@ export default function CellsPage() {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Modal de edición */}
+      <Dialog open={editingCell !== null} onOpenChange={() => setEditingCell(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar Célula: {editingCell?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tribu</label>
+              <Select value={editTribeName} onValueChange={setEditTribeName}>
+                <SelectTrigger><SelectValue placeholder="Selecciona tribu" /></SelectTrigger>
+                <SelectContent>
+                  {tribes.map((tribe) => (
+                    <SelectItem key={tribe.id} value={tribe.name}>{tribe.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Agile Coach</label>
+              <Input value={editAgileCoach} onChange={(e) => setEditAgileCoach(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2 pt-4">
+              <Button variant="outline" onClick={() => setEditingCell(null)}>Cancelar</Button>
+              <Button onClick={handleSaveEdit}>Guardar Cambios</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -31,7 +31,7 @@ export async function GET() {
   }
 }
 
-// Guardar uno o varios registros
+// Guardar uno o varios registros y agregar nuevas células
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -39,7 +39,6 @@ export async function POST(req: Request) {
 
     const db = await connectDB();
 
-    // Si el frontend envía una sola fila, la convertimos en arreglo
     const dataArray = Array.isArray(body) ? body : [body];
 
     for (const item of dataArray) {
@@ -50,6 +49,8 @@ export async function POST(req: Request) {
         iterationPath,
         celula,
         sprint,
+        tribeName,       // <-- nuevo campo
+        agileCoachName,  // <-- nuevo campo
       } = item;
 
       if (!assignedTo || !state) {
@@ -57,21 +58,44 @@ export async function POST(req: Request) {
         continue;
       }
 
-      console.log("💾 Insertando fila:", {
-        assignedTo,
-        state,
-        storyPoints,
-        iterationPath,
-        celula,
-        sprint,
-      });
+      // 1️⃣ Agregar célula nueva si no existe
+      if (celula) {
+        const [existing] = await db.execute(
+          `SELECT id FROM cells WHERE name = ?`,
+          [celula]
+        );
 
+        if ((existing as any[]).length === 0) {
+          await db.execute(
+            `INSERT INTO cells (name, tribeName, agileCoachName, costPerSprint, status) 
+             VALUES (?, ?, ?, ?, ?)`,
+            [
+              celula,
+              tribeName || "Sin tribu",
+              agileCoachName || "Sin coach",
+              0.0,
+              "planning"
+            ]
+          );
+          console.log("✅ Nueva célula agregada:", celula);
+        }
+      }
+
+      // 2️⃣ Insertar fila en excel_data
       await db.execute(
         `
-        INSERT INTO excel_data (assigned_to, state, story_points, iteration_path, celula, sprint)
+        INSERT INTO excel_data 
+          (assigned_to, state, story_points, iteration_path, celula, sprint)
         VALUES (?, ?, ?, ?, ?, ?)
         `,
-        [assignedTo, state, storyPoints, iterationPath, celula, sprint]
+        [
+          assignedTo ?? null,
+          state ?? null,
+          storyPoints ?? null,
+          iterationPath ?? null,
+          celula ?? null,
+          sprint ?? null,
+        ]
       );
     }
 
