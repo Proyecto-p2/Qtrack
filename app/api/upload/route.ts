@@ -31,7 +31,7 @@ export async function GET() {
   }
 }
 
-// Guardar uno o varios registros y agregar nuevas células
+// Guardar uno o varios registros y agregar nuevas células y sprints
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -49,14 +49,19 @@ export async function POST(req: Request) {
         iterationPath,
         celula,
         sprint,
-        tribeName,       // <-- nuevo campo
-        agileCoachName,  // <-- nuevo campo
+        tribeName,
+        agileCoachName,
+        quarter,        // <-- nuevo campo para sprint
+        startDate,      // <-- nuevo campo para sprint
+        endDate,        // <-- nuevo campo para sprint
       } = item;
 
       if (!assignedTo || !state) {
         console.warn("⚠️ Fila ignorada: faltan datos obligatorios", item);
         continue;
       }
+
+      let cellId = null;
 
       // 1️⃣ Agregar célula nueva si no existe
       if (celula) {
@@ -66,7 +71,7 @@ export async function POST(req: Request) {
         );
 
         if ((existing as any[]).length === 0) {
-          await db.execute(
+          const [result] = await db.execute(
             `INSERT INTO cells (name, tribeName, agileCoachName, costPerSprint, status) 
              VALUES (?, ?, ?, ?, ?)`,
             [
@@ -77,11 +82,38 @@ export async function POST(req: Request) {
               "planning"
             ]
           );
+          cellId = (result as any).insertId;
           console.log("✅ Nueva célula agregada:", celula);
+        } else {
+          cellId = (existing as any[])[0].id;
         }
       }
 
-      // 2️⃣ Insertar fila en excel_data
+      // 2️⃣ Agregar sprint nuevo si no existe
+      if (sprint && cellId) {
+        const [existingSprint] = await db.execute(
+          `SELECT id FROM sprints WHERE name = ? AND cell_id = ?`,
+          [sprint, cellId]
+        );
+
+        if ((existingSprint as any[]).length === 0) {
+          await db.execute(
+            `INSERT INTO sprints (cell_id, name, quarter, start_date, end_date, status) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              cellId,
+              sprint,
+              quarter || "Q1",
+              startDate || new Date().toISOString().split('T')[0],
+              endDate || new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +14 días por defecto
+              "planning"
+            ]
+          );
+          console.log("✅ Nuevo sprint agregado:", sprint);
+        }
+      }
+
+      // 3️⃣ Insertar fila en excel_data
       await db.execute(
         `
         INSERT INTO excel_data 
