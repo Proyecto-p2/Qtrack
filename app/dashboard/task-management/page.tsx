@@ -268,19 +268,11 @@ export default function TaskManagementPage() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="assignedTo">Asignar a Usuario</Label>
-                  <Select value={formData.assignedTo} onValueChange={(value) => setFormData({...formData, assignedTo: value === "unassigned" ? "" : value})}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sin asignar" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Sin asignar</SelectItem>
-                      {users.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.nombre} (@{user.usuario})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    placeholder="Nombre del usuario o @usuario"
+                    value={formData.assignedTo}
+                    onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
+                  />
                 </div>
               </div>
               
@@ -525,22 +517,12 @@ export default function TaskManagementPage() {
                         <span className="text-muted-foreground italic">Sin asignar</span>
                       )}
                     </div>
-                    <Select
-                      value={(task as any).assigned_to || "unassigned"}
-                      onValueChange={(value) => updateTaskAssignment(task.id, value === "unassigned" ? "" : value)}
-                    >
-                      <SelectTrigger className="w-40 mt-2">
-                        <SelectValue placeholder="Cambiar asignación" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="unassigned">Sin asignar</SelectItem>
-                        {users.map((user) => (
-                          <SelectItem key={user.id} value={user.id}>
-                            {user.nombre}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Input
+                      placeholder="Cambiar asignación"
+                      value={(task as any).assigned_to || ""}
+                      onChange={(e) => updateTaskAssignment(task.id, e.target.value)}
+                      className="w-40 mt-2"
+                    />
                   </TableCell>
                   <TableCell>
                     <Badge className={`${statusColors[task.status]} text-white`}>
