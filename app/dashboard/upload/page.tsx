@@ -8,17 +8,14 @@ interface ExcelRow {
   state: string;
   storyPoints: string;
   iterationPath: string;
+  celula: string;
+  sprint: string;
   id?: number;
   createdAt?: string;
 }
 
 export default function DashboardUpload() {
-  const [formValues, setFormValues] = useState<ExcelRow>({
-    assignedTo: "",
-    state: "",
-    storyPoints: "",
-    iterationPath: "",
-  });
+  const [formValues, setFormValues] = useState<ExcelRow[]>([]);
   const [savedData, setSavedData] = useState<ExcelRow[]>([]);
 
   const fetchSavedData = async () => {
@@ -32,17 +29,21 @@ export default function DashboardUpload() {
           state: row.state,
           storyPoints: row.story_points,
           iterationPath: row.iteration_path,
+          celula: row.celula,
+          sprint: row.sprint,
           id: row.id,
           createdAt: row.created_at,
         }));
         setSavedData(formattedData);
-      } else {
+      } else if (data) {
         const row = data;
         setSavedData([{
           assignedTo: row.assigned_to,
           state: row.state,
           storyPoints: row.story_points,
           iterationPath: row.iteration_path,
+          celula: row.celula,
+          sprint: row.sprint,
           id: row.id,
           createdAt: row.created_at,
         }]);
@@ -70,53 +71,67 @@ export default function DashboardUpload() {
       const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length > 0) {
-        const firstRow = jsonData[0];
-        setFormValues({
-          assignedTo: firstRow["Assigned To"] || "",
-          state: firstRow["State"] || "",
-          storyPoints: String(firstRow["Story Points"] || ""),
-          iterationPath: firstRow["Iteration Path"] || "",
-        });
+        const normalized: ExcelRow[] = jsonData.map(row => ({
+          assignedTo: row["Assigned To"] || "",
+          state: row["State"] || "",
+          storyPoints: String(row["Story Points"] || ""),
+          iterationPath: row["Iteration Path"] || "",
+          celula: row["Celula"] || "",
+          sprint: row["Sprint"] || "",
+        }));
+        setFormValues(normalized);
+        console.log("Datos normalizados del Excel:", normalized);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
-  const handleSave = async () => {
-    console.log("Datos a guardar:", formValues);
+  const handleSaveAll = async () => {
+    if (formValues.length === 0) return;
 
     try {
+      const cleanedData = formValues.map(item => ({
+        assignedTo: item.assignedTo ?? null,
+        state: item.state ?? null,
+        storyPoints: item.storyPoints ?? null,
+        iterationPath: item.iterationPath ?? null,
+        celula: item.celula ?? null,
+        sprint: item.sprint ?? null,
+      }));
+
+      console.log("Enviando al backend:", cleanedData);
+
       const res = await fetch("/api/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assigned_to: formValues.assignedTo,
-          state: formValues.state,
-          story_points: formValues.storyPoints,
-          iteration_path: formValues.iterationPath,
-        }),
+        body: JSON.stringify(cleanedData),
       });
 
       const result = await res.json();
       if (!res.ok) {
         console.error("Error al guardar:", result);
+        alert("Error al guardar los datos: " + result.error);
         return;
       }
 
-      setFormValues({ assignedTo: "", state: "", storyPoints: "", iterationPath: "" });
+      alert("✅ Datos guardados correctamente");
+      setFormValues([]);
       fetchSavedData();
-    } catch (error) {
-      console.error("Error guardando datos:", error);
+    } catch (error: any) {
+      console.error("Error al guardar:", error);
+      alert("Error al guardar los datos");
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormValues({ ...formValues, [e.target.name]: e.target.value });
+  const handleChange = (index: number, key: keyof ExcelRow, value: string) => {
+    const updated = [...formValues];
+    updated[index][key] = value;
+    setFormValues(updated);
   };
 
   return (
-    <div className="p-6 bg-white rounded-2xl shadow-lg max-w-4xl mx-auto">
-      <h2 className="text-2xl font-bold mb-4 text-center text-black">📂 Carga de excel</h2>
+    <div className="p-6 bg-white rounded-2xl shadow-lg max-w-5xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-center text-black">📂 Carga de Excel</h2>
 
       <input
         type="file"
@@ -125,27 +140,30 @@ export default function DashboardUpload() {
         className="mb-4 w-full file:border file:rounded file:px-3 file:py-2 file:bg-blue-600 file:text-white file:cursor-pointer"
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-        {["assignedTo", "state", "storyPoints", "iterationPath"].map((key) => (
-          <div key={key}>
-            <label className="block text-sm font-medium mb-1 text-black">{key}</label>
-            <input
-              name={key}
-              value={(formValues as any)[key]}
-              onChange={handleChange}
-              placeholder={key}
-              className="border rounded w-full p-2 text-black focus:ring-2 focus:ring-blue-400 bg-white"
-            />
-          </div>
-        ))}
-      </div>
-
-      <button
-        onClick={handleSave}
-        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition mb-6"
-      >
-        Guardar datos
-      </button>
+      {formValues.length > 0 && (
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold mb-2 text-black">✏️ Datos cargados desde Excel</h3>
+          {formValues.map((row, idx) => (
+            <div key={idx} className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-2 mb-2 p-2 border rounded bg-gray-50">
+              {(["assignedTo", "state", "storyPoints", "iterationPath", "celula", "sprint"] as (keyof ExcelRow)[]).map((key) => (
+                <input
+                  key={key}
+                  value={row[key]}
+                  onChange={(e) => handleChange(idx, key, e.target.value)}
+                  placeholder={key}
+                  className="border rounded p-1 text-sm bg-white text-black focus:ring-2 focus:ring-blue-400"
+                />
+              ))}
+            </div>
+          ))}
+          <button
+            onClick={handleSaveAll}
+            className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition mt-2"
+          >
+            Guardar todos los datos
+          </button>
+        </div>
+      )}
 
       <h3 className="text-lg font-semibold mb-3 text-black">💾 Datos guardados</h3>
       {savedData.length === 0 ? (
@@ -154,18 +172,12 @@ export default function DashboardUpload() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {savedData.map((row) => (
             <div key={row.id} className="p-4 border rounded-lg shadow-sm bg-gray-50 text-black">
-              <p>
-                <span className="font-semibold">Assigned To:</span> {row.assignedTo}
-              </p>
-              <p>
-                <span className="font-semibold">State:</span> {row.state}
-              </p>
-              <p>
-                <span className="font-semibold">Story Points:</span> {row.storyPoints}
-              </p>
-              <p>
-                <span className="font-semibold">Iteration Path:</span> {row.iterationPath}
-              </p>
+              <p><span className="font-semibold">Assigned To:</span> {row.assignedTo}</p>
+              <p><span className="font-semibold">State:</span> {row.state}</p>
+              <p><span className="font-semibold">Story Points:</span> {row.storyPoints}</p>
+              <p><span className="font-semibold">Iteration Path:</span> {row.iterationPath}</p>
+              <p><span className="font-semibold">Celula:</span> {row.celula}</p>
+              <p><span className="font-semibold">Sprint:</span> {row.sprint}</p>
               {row.createdAt && <p className="text-xs text-gray-500 mt-1">{row.createdAt}</p>}
             </div>
           ))}

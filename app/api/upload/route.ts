@@ -1,63 +1,90 @@
 import { NextResponse } from "next/server";
-import db from "@/lib/db";
+import mysql from "mysql2/promise";
 
+// Conexión a la base de datos
+async function connectDB() {
+  return await mysql.createConnection({
+    host: process.env.DB_HOST,
+    port: Number(process.env.DB_PORT),
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+  });
+}
+
+// Obtener todos los registros
 export async function GET() {
   try {
-    // Trae todos los campos, incluidos sprint y celula
-    const [rows] = await db.query(
-      "SELECT id, assigned_to, state, story_points, iteration_path, sprint, celula, created_at FROM excel_data ORDER BY created_at DESC"
-    );
-
-    return NextResponse.json(rows);
-  } catch (error) {
-    console.error("Error obteniendo datos de Excel:", error);
+    const db = await connectDB();
+    const [rows] = await db.execute(`
+      SELECT id, assigned_to, state, story_points, iteration_path, celula, sprint, created_at
+      FROM excel_data ORDER BY id DESC
+    `);
+    await db.end();
+    return NextResponse.json(rows, { status: 200 });
+  } catch (error: any) {
+    console.error("❌ Error obteniendo datos:", error.message);
     return NextResponse.json(
-      { message: "Error al obtener datos" },
+      { message: "Error interno al obtener datos", error: error.message },
       { status: 500 }
     );
   }
 }
 
-export async function POST(request: Request) {
+// Guardar uno o varios registros
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
+    const body = await req.json();
+    console.log("📥 Datos recibidos del cliente:", body);
 
-    // Aceptar tanto camelCase como snake_case
-    const assigned_to = body.assignedTo || body.assigned_to || "";
-    const state = body.state || "";
-    const story_points = body.storyPoints || body.story_points || "";
-    const iteration_path = body.iterationPath || body.iteration_path || "";
-    const sprint = body.sprint || "";
-    const celula = body.celula || "";
+    const db = await connectDB();
 
-    // Validación mínima
-    if (
-      !assigned_to &&
-      !state &&
-      !story_points &&
-      !iteration_path &&
-      !sprint &&
-      !celula
-    ) {
-      return NextResponse.json(
-        { message: "No se recibieron datos válidos" },
-        { status: 400 }
+    // Si el frontend envía una sola fila, la convertimos en arreglo
+    const dataArray = Array.isArray(body) ? body : [body];
+
+    for (const item of dataArray) {
+      const {
+        assignedTo,
+        state,
+        storyPoints,
+        iterationPath,
+        celula,
+        sprint,
+      } = item;
+
+      if (!assignedTo || !state) {
+        console.warn("⚠️ Fila ignorada: faltan datos obligatorios", item);
+        continue;
+      }
+
+      console.log("💾 Insertando fila:", {
+        assignedTo,
+        state,
+        storyPoints,
+        iterationPath,
+        celula,
+        sprint,
+      });
+
+      await db.execute(
+        `
+        INSERT INTO excel_data (assigned_to, state, story_points, iteration_path, celula, sprint)
+        VALUES (?, ?, ?, ?, ?, ?)
+        `,
+        [assignedTo, state, storyPoints, iterationPath, celula, sprint]
       );
     }
 
-    // Insertar en DB (agregando sprint y celula)
-    await db.query(
-      `INSERT INTO excel_data 
-        (assigned_to, state, story_points, iteration_path, sprint, celula) 
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [assigned_to, state, story_points, iteration_path, sprint, celula]
-    );
+    await db.end();
 
-    return NextResponse.json({ message: "Datos guardados correctamente" });
-  } catch (error) {
-    console.error("Error guardando datos de Excel:", error);
     return NextResponse.json(
-      { message: "Error al guardar datos de Excel" },
+      { message: `✅ ${dataArray.length} filas guardadas correctamente.` },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    console.error("❌ Error guardando datos:", error.message);
+    return NextResponse.json(
+      { message: "Error al guardar los datos", error: error.message },
       { status: 500 }
     );
   }
