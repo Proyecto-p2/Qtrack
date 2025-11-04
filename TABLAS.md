@@ -283,3 +283,13 @@ CREATE TABLE task_activity_logs (
   FOREIGN KEY (task_id) REFERENCES user_tasks(id) ON DELETE CASCADE,
   FOREIGN KEY (user_id) REFERENCES usuarios(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+CREATE TABLE excel_data (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  assigned_to VARCHAR(255),
+  state VARCHAR(255),
+  story_points VARCHAR(50),
+  iteration_path VARCHAR(255),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

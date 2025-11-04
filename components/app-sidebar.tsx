@@ -9,7 +9,6 @@ import {
   Settings,
   TrendingUp,
   Users,
-  AlertTriangle,
   Upload,
   Target,
   User,
@@ -31,7 +30,8 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar";
 
-import { useSession } from "next-auth/react";
+import { useSession, SessionProvider } from "next-auth/react";
+import React from "react";
 
 interface MenuItem {
   title: string;
@@ -42,33 +42,53 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   { title: "Dashboard", url: "/dashboard", icon: Home },
-  { title: "Mi Dashboard", url: "/dashboard/personal", icon: Activity, roles: ["usuario", "agile_coach", "admin"] },
-  { title: "Gestión de Tareas", url: "/dashboard/task-management", icon: CheckSquare, roles: ["agile_coach", "admin"] },
+  {
+    title: "Mi Dashboard",
+    url: "/dashboard/personal",
+    icon: Activity,
+    roles: ["usuario", "agile_coach", "admin"],
+  },
+  {
+    title: "Gestión de Tareas",
+    url: "/dashboard/task-management",
+    icon: CheckSquare,
+    roles: ["agile_coach", "admin"],
+  },
   { title: "Líneas de Conocimiento", url: "/dashboard/knowledge-lines", icon: Target },
   { title: "Células", url: "/dashboard/cells", icon: Building2 },
   { title: "Tribus", url: "/dashboard/tribes", icon: Users },
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
   { title: "Configuración de Q", url: "/dashboard/q-configuration", icon: Settings },
+  { title: "Carga de archivo", url: "/dashboard/upload", icon: Upload },
   { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
   { title: "Usuarios", url: "/dashboard/users", icon: Users, roles: ["admin"] },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
 ];
 
+// Este componente envuelve tu Sidebar en un SessionProvider
+export function AppSidebarWrapper() {
+  return (
+    <SessionProvider>
+      <AppSidebar />
+    </SessionProvider>
+  );
+}
+
 export function AppSidebar() {
   const { data: session, status } = useSession();
 
-  const getRoleLabel = (role: string) => {
-    const roles = {
+  const getRoleLabel = (role: string): string => {
+    const roles: Record<string, string> = {
       admin: "Administrador",
       usuario: "Usuario",
       editor: "Editor",
       agile_coach: "Agile Coach",
     };
-    return roles[role as keyof typeof roles] || "Usuario";
+    return roles[role] || "Usuario";
   };
 
-  const getInitials = (name: string) => {
+  const getInitials = (name: string): string => {
     if (!name) return "U";
     return name
       .split(" ")
@@ -78,18 +98,12 @@ export function AppSidebar() {
       .slice(0, 2);
   };
 
-  const userRole = (session?.user as any)?.role || "usuario";
-  const userName = session?.user?.name || "Usuario";
-  const userEmail = session?.user?.email || "";
+  const userRole = (session?.user as { role?: string })?.role ?? "usuario";
+  const userName = session?.user?.name ?? "Usuario";
+  const userEmail = session?.user?.email ?? "";
 
-  // Filtrar items del menú basado en el rol del usuario
   const filteredMenuItems = menuItems.filter((item) => {
-    // Si el item tiene roles específicos, verificar si el usuario tiene acceso
-    if (item.roles) {
-      return item.roles.includes(userRole);
-    }
-    // Si no tiene roles específicos, mostrar a todos
-    return true;
+    return !item.roles || item.roles.includes(userRole);
   });
 
   return (
@@ -107,6 +121,7 @@ export function AppSidebar() {
           </div>
         </div>
       </SidebarHeader>
+
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Navegación</SidebarGroupLabel>
@@ -115,7 +130,6 @@ export function AppSidebar() {
               {filteredMenuItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
-                    {/* Aquí usamos <a> normal para navegación interna */}
                     <a href={item.url} className="flex items-center gap-2">
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
@@ -127,6 +141,7 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
       <SidebarFooter>
         <div className="p-4">
           <div className="flex items-center gap-3 mb-3">
@@ -135,7 +150,9 @@ export function AppSidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{userName}</p>
-              <p className="text-xs text-muted-foreground truncate">{userEmail || "Cargando..."}</p>
+              <p className="text-xs text-muted-foreground truncate">
+                {userEmail || "Cargando..."}
+              </p>
             </div>
           </div>
         </div>

@@ -1,333 +1,176 @@
-"use client"
+"use client";
 
-import type React from "react"
+import React, { useState, useEffect } from "react";
+import * as XLSX from "xlsx";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Progress } from "@/components/ui/progress"
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download } from "lucide-react"
-
-interface UploadResult {
-  success: boolean
-  message: string
-  processedRecords: number
-  errors: string[]
+interface ExcelRow {
+  assignedTo: string;
+  state: string;
+  storyPoints: string;
+  iterationPath: string;
+  id?: number;
+  createdAt?: string;
 }
 
-export default function UploadPage() {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
-  const [fileType, setFileType] = useState<string>("")
-  const [cellId, setCellId] = useState<string>("")
-  const [uploading, setUploading] = useState(false)
-  const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null)
+export default function DashboardUpload() {
+  const [formValues, setFormValues] = useState<ExcelRow>({
+    assignedTo: "",
+    state: "",
+    storyPoints: "",
+    iterationPath: "",
+  });
+  const [savedData, setSavedData] = useState<ExcelRow[]>([]);
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-      setUploadResult(null)
+  const fetchSavedData = async () => {
+    try {
+      const res = await fetch("/api/upload");
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const formattedData = data.map((row: any) => ({
+          assignedTo: row.assigned_to,
+          state: row.state,
+          storyPoints: row.story_points,
+          iterationPath: row.iteration_path,
+          id: row.id,
+          createdAt: row.created_at,
+        }));
+        setSavedData(formattedData);
+      } else {
+        const row = data;
+        setSavedData([{
+          assignedTo: row.assigned_to,
+          state: row.state,
+          storyPoints: row.story_points,
+          iterationPath: row.iteration_path,
+          id: row.id,
+          createdAt: row.created_at,
+        }]);
+      }
+    } catch (error) {
+      console.error("Error al obtener datos:", error);
+      setSavedData([]);
     }
-  }
+  };
 
-  const handleUpload = async () => {
-    if (!selectedFile || !fileType || !cellId) {
-      return
-    }
+  useEffect(() => {
+    fetchSavedData();
+  }, []);
 
-    setUploading(true)
-    setUploadProgress(0)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-    // Simular progreso de carga
-    const progressInterval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(progressInterval)
-          return 90
-        }
-        return prev + 10
-      })
-    }, 200)
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length > 0) {
+        const firstRow = jsonData[0];
+        setFormValues({
+          assignedTo: firstRow["Assigned To"] || "",
+          state: firstRow["State"] || "",
+          storyPoints: String(firstRow["Story Points"] || ""),
+          iterationPath: firstRow["Iteration Path"] || "",
+        });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
+
+  const handleSave = async () => {
+    console.log("Datos a guardar:", formValues);
 
     try {
-      // Simular procesamiento
-      await new Promise((resolve) => setTimeout(resolve, 3000))
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assigned_to: formValues.assignedTo,
+          state: formValues.state,
+          story_points: formValues.storyPoints,
+          iteration_path: formValues.iterationPath,
+        }),
+      });
 
-      // Simular resultado exitoso
-      setUploadResult({
-        success: true,
-        message: "Archivo procesado exitosamente",
-        processedRecords: Math.floor(Math.random() * 100) + 50,
-        errors: [],
-      })
+      const result = await res.json();
+      if (!res.ok) {
+        console.error("Error al guardar:", result);
+        return;
+      }
 
-      setUploadProgress(100)
+      setFormValues({ assignedTo: "", state: "", storyPoints: "", iterationPath: "" });
+      fetchSavedData();
     } catch (error) {
-      setUploadResult({
-        success: false,
-        message: "Error al procesar el archivo",
-        processedRecords: 0,
-        errors: ["Formato de archivo inválido", "Faltan columnas requeridas"],
-      })
-    } finally {
-      clearInterval(progressInterval)
-      setUploading(false)
+      console.error("Error guardando datos:", error);
     }
-  }
+  };
 
-  const downloadTemplate = (type: string) => {
-    // Simular descarga de plantilla
-    alert(`Descargando plantilla para: ${type}`)
-  }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormValues({ ...formValues, [e.target.name]: e.target.value });
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-3xl font-bold tracking-tight">Carga Masiva de Datos</h2>
+    <div className="p-6 bg-white rounded-2xl shadow-lg max-w-4xl mx-auto">
+      <h2 className="text-2xl font-bold mb-4 text-center text-black">📂 Dashboard Upload</h2>
+
+      <input
+        type="file"
+        accept=".xlsx, .xls"
+        onChange={handleFileUpload}
+        className="mb-4 w-full file:border file:rounded file:px-3 file:py-2 file:bg-blue-600 file:text-white file:cursor-pointer"
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {["assignedTo", "state", "storyPoints", "iterationPath"].map((key) => (
+          <div key={key}>
+            <label className="block text-sm font-medium mb-1 text-black">{key}</label>
+            <input
+              name={key}
+              value={(formValues as any)[key]}
+              onChange={handleChange}
+              placeholder={key}
+              className="border rounded w-full p-2 text-black focus:ring-2 focus:ring-blue-400 bg-white"
+            />
+          </div>
+        ))}
       </div>
 
-      {/* Upload Form */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Cargar Archivo
-          </CardTitle>
-          <CardDescription>Sube archivos Excel o CSV con datos de planeación, resultados o capacidad</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="file-type">Tipo de Archivo</Label>
-              <Select value={fileType} onValueChange={setFileType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona el tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planning">Planeación de Sprint</SelectItem>
-                  <SelectItem value="results">Resultados de Sprint</SelectItem>
-                  <SelectItem value="capacity">Capacidad de Talento</SelectItem>
-                  <SelectItem value="daily_logs">Registros Diarios</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <button
+        onClick={handleSave}
+        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition mb-6"
+      >
+        Guardar datos
+      </button>
 
-            <div className="space-y-2">
-              <Label htmlFor="cell">Célula</Label>
-              <Select value={cellId} onValueChange={setCellId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecciona la célula" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1">Célula Frontend Alpha</SelectItem>
-                  <SelectItem value="2">Célula Backend Beta</SelectItem>
-                  <SelectItem value="3">Célula DevOps Gamma</SelectItem>
-                  <SelectItem value="4">Célula QA Delta</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="file">Archivo</Label>
-            <Input id="file" type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} />
-            {selectedFile && (
-              <p className="text-sm text-muted-foreground">
-                Archivo seleccionado: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB)
+      <h3 className="text-lg font-semibold mb-3 text-black">💾 Datos guardados</h3>
+      {savedData.length === 0 ? (
+        <p className="text-gray-500">No hay datos guardados aún.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {savedData.map((row) => (
+            <div key={row.id} className="p-4 border rounded-lg shadow-sm bg-gray-50 text-black">
+              <p>
+                <span className="font-semibold">Assigned To:</span> {row.assignedTo}
               </p>
-            )}
-          </div>
-
-          {uploading && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Procesando archivo...</span>
-                <span>{uploadProgress}%</span>
-              </div>
-              <Progress value={uploadProgress} />
+              <p>
+                <span className="font-semibold">State:</span> {row.state}
+              </p>
+              <p>
+                <span className="font-semibold">Story Points:</span> {row.storyPoints}
+              </p>
+              <p>
+                <span className="font-semibold">Iteration Path:</span> {row.iterationPath}
+              </p>
+              {row.createdAt && <p className="text-xs text-gray-500 mt-1">{row.createdAt}</p>}
             </div>
-          )}
-
-          <div className="flex gap-2">
-            <Button onClick={handleUpload} disabled={!selectedFile || !fileType || !cellId || uploading}>
-              {uploading ? (
-                <>Procesando...</>
-              ) : (
-                <>
-                  <Upload className="mr-2 h-4 w-4" />
-                  Cargar Archivo
-                </>
-              )}
-            </Button>
-
-            {fileType && (
-              <Button variant="outline" onClick={() => downloadTemplate(fileType)}>
-                <Download className="mr-2 h-4 w-4" />
-                Descargar Plantilla
-              </Button>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Upload Result */}
-      {uploadResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {uploadResult.success ? (
-                <CheckCircle className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-red-600" />
-              )}
-              Resultado de la Carga
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Alert variant={uploadResult.success ? "default" : "destructive"}>
-              <AlertDescription>
-                {uploadResult.message}
-                {uploadResult.success && (
-                  <p className="mt-2">
-                    Registros procesados: <strong>{uploadResult.processedRecords}</strong>
-                  </p>
-                )}
-              </AlertDescription>
-            </Alert>
-
-            {uploadResult.errors.length > 0 && (
-              <div className="mt-4">
-                <h4 className="font-medium text-sm mb-2">Errores encontrados:</h4>
-                <ul className="text-sm text-red-600 space-y-1">
-                  {uploadResult.errors.map((error, index) => (
-                    <li key={index}>• {error}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          ))}
+        </div>
       )}
-
-      {/* Templates Info */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="h-5 w-5" />
-            Plantillas Disponibles
-          </CardTitle>
-          <CardDescription>Descarga las plantillas para cada tipo de archivo</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <h4 className="font-medium">Planeación de Sprint</h4>
-              <p className="text-sm text-muted-foreground">
-                Incluye: ID Sprint, Tareas, Story Points, Asignaciones, Fechas
-              </p>
-              <Button variant="outline" size="sm" onClick={() => downloadTemplate("planning")}>
-                <Download className="mr-2 h-4 w-4" />
-                Descargar
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Resultados de Sprint</h4>
-              <p className="text-sm text-muted-foreground">
-                Incluye: Tareas completadas, Puntos entregados, Métricas de calidad
-              </p>
-              <Button variant="outline" size="sm" onClick={() => downloadTemplate("results")}>
-                <Download className="mr-2 h-4 w-4" />
-                Descargar
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Capacidad de Talento</h4>
-              <p className="text-sm text-muted-foreground">
-                Incluye: Miembros, Líneas de conocimiento, Capacidad, Costos
-              </p>
-              <Button variant="outline" size="sm" onClick={() => downloadTemplate("capacity")}>
-                <Download className="mr-2 h-4 w-4" />
-                Descargar
-              </Button>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium">Registros Diarios</h4>
-              <p className="text-sm text-muted-foreground">
-                Incluye: Fecha, Usuario, Tarea, Horas trabajadas, Progreso
-              </p>
-              <Button variant="outline" size="sm" onClick={() => downloadTemplate("daily_logs")}>
-                <Download className="mr-2 h-4 w-4" />
-                Descargar
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Recent Uploads */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cargas Recientes</CardTitle>
-          <CardDescription>Historial de archivos procesados</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {[
-              {
-                filename: "planeacion_sprint_23.xlsx",
-                type: "Planeación",
-                date: "2024-01-15",
-                status: "Completado",
-                records: 45,
-              },
-              {
-                filename: "resultados_q4_2023.csv",
-                type: "Resultados",
-                date: "2024-01-14",
-                status: "Completado",
-                records: 128,
-              },
-              {
-                filename: "capacidad_enero.xlsx",
-                type: "Capacidad",
-                date: "2024-01-13",
-                status: "Error",
-                records: 0,
-              },
-            ].map((upload, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <FileSpreadsheet className="h-4 w-4 text-muted-foreground" />
-                  <div>
-                    <p className="font-medium text-sm">{upload.filename}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {upload.type} • {upload.date}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{upload.records} registros</span>
-                  <span
-                    className={`text-xs px-2 py-1 rounded-full ${
-                      upload.status === "Completado" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}
-                  >
-                    {upload.status}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
     </div>
-  )
+  );
 }
