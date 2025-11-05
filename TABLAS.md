@@ -293,3 +293,7 @@ CREATE TABLE excel_data (
   iteration_path VARCHAR(255),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+ALTER TABLE excel_data
+ADD COLUMN sprint VARCHAR(255);
+ADD COLUMN celula VARCHAR(255);
