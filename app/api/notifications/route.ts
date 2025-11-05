@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import mysql from "mysql2/promise";
-import { getServerSession } from "next-auth";
+import { auth } from "@/lib/auth";
 
 async function connectDB() {
   return await mysql.createConnection({
@@ -14,7 +14,7 @@ async function connectDB() {
 
 export async function GET() {
   try {
-    const session = await getServerSession();
+    const session = await auth();
     if (!session?.user?.email) {
       return NextResponse.json({ message: "No autorizado" }, { status: 401 });
     }
