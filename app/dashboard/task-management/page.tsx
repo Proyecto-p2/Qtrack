@@ -319,14 +319,6 @@ export default function TaskManagementPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assignedTo">Asignar a Usuario (Opcional)</Label>
-                  <Input
-                    placeholder="Nombre del usuario o @usuario"
-                    value={formData.assignedTo}
-                    onChange={(e) => setFormData({...formData, assignedTo: e.target.value})}
-                  />
-                </div>
               </div>
               
               <div className="space-y-2">
