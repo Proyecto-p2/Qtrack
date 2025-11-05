@@ -116,6 +116,7 @@ export async function GET(request: Request) {
 
 // POST - Crear nueva tarea
 export async function POST(request: Request) {
+  let db: any;
   try {
     const session = await auth();
     if (!session?.user) {
@@ -123,6 +124,8 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
+    console.log("📥 POST /api/user-tasks body:", body);
+
     const {
       sprintId,
       title,
@@ -131,7 +134,6 @@ export async function POST(request: Request) {
       taskType = "planned",
       priority = "medium",
       assignedTo = null,
-      knowledgeLineId = null,
       estimatedHours = 0
     } = body;
 
@@ -153,31 +155,45 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = await connectDB();
+    db = await connectDB();
+
+    console.log("📝 Inserting task with params:", {
+      sprintId,
+      title,
+      description,
+      storyPoints,
+      taskType,
+      priority,
+      assignedTo,
+      estimatedHours
+    });
+
+    // Validar que el sprint existe
+    const [sprintCheck] = await db.execute(
+      "SELECT id FROM sprints WHERE id = ?",
+      [sprintId]
+    );
+
+    if (!sprintCheck || (sprintCheck as any[]).length === 0) {
+      await db.end();
+      return NextResponse.json(
+        { message: "El sprint no existe" },
+        { status: 400 }
+      );
+    }
 
     const [result] = await db.execute(`
       INSERT INTO user_tasks (
         sprint_id, title, description, story_points, task_type, 
-        priority, assigned_to, knowledge_line_id, estimated_hours
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        priority, assigned_to, estimated_hours, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `, [
       sprintId, title, description, storyPoints, taskType,
-      priority, assignedTo, knowledgeLineId, estimatedHours
+      priority, assignedTo || null, estimatedHours
     ]);
 
-    // Registrar actividad
     const taskId = (result as any).insertId;
-    await db.execute(`
-      INSERT INTO task_activity_logs (task_id, user_id, action, new_value)
-      VALUES (?, ?, 'created', ?)
-    `, [taskId, currentUserId, title]);
-
-    if (assignedTo) {
-      await db.execute(`
-        INSERT INTO task_activity_logs (task_id, user_id, action, new_value)
-        VALUES (?, ?, 'assigned', ?)
-      `, [taskId, currentUserId, assignedTo]);
-    }
+    console.log("✅ Task created with ID:", taskId);
 
     await db.end();
 
@@ -186,13 +202,21 @@ export async function POST(request: Request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("Error creando tarea:", error);
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 });
+    console.error("❌ Error creando tarea:", error);
+    if (db) await db.end();
+    return NextResponse.json(
+      { 
+        message: "Error interno del servidor",
+        error: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }
 
 // PUT - Actualizar tarea
 export async function PUT(request: Request) {
+  let db: any;
   try {
     const session = await auth();
     if (!session?.user) {
@@ -200,6 +224,8 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
+    console.log("📥 PUT /api/user-tasks body:", body);
+
     const {
       taskId,
       title,
@@ -218,7 +244,7 @@ export async function PUT(request: Request) {
     const userRole = (session.user as any)?.role;
     const currentUserId = (session.user as any)?.id;
 
-    const db = await connectDB();
+    db = await connectDB();
 
     // Verificar permisos
     const [existingTask] = await db.execute(
@@ -255,7 +281,7 @@ export async function PUT(request: Request) {
         updates.push('completed_at = NOW()');
       }
     }
-    if (assignedTo !== undefined) { updates.push('assigned_to = ?'); params.push(assignedTo); }
+    if (assignedTo !== undefined) { updates.push('assigned_to = ?'); params.push(assignedTo || null); }
     if (actualHours !== undefined) { updates.push('actual_hours = ?'); params.push(actualHours); }
 
     if (updates.length === 0) {
@@ -265,22 +291,27 @@ export async function PUT(request: Request) {
 
     params.push(taskId);
 
+    console.log("📝 Update query:", `UPDATE user_tasks SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`);
+    console.log("📊 Params:", params);
+
     await db.execute(
       `UPDATE user_tasks SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
       params
     );
 
-    // Registrar actividad
-    await db.execute(`
-      INSERT INTO task_activity_logs (task_id, user_id, action, new_value, notes)
-      VALUES (?, ?, 'updated', ?, ?)
-    `, [taskId, currentUserId, JSON.stringify(body), notes || null]);
-
+    console.log("✅ Task updated:", taskId);
     await db.end();
 
     return NextResponse.json({ message: "Tarea actualizada exitosamente" });
   } catch (error) {
-    console.error("Error actualizando tarea:", error);
-    return NextResponse.json({ message: "Error interno del servidor" }, { status: 500 });
+    console.error("❌ Error actualizando tarea:", error);
+    if (db) await db.end();
+    return NextResponse.json(
+      { 
+        message: "Error interno del servidor",
+        error: error instanceof Error ? error.message : String(error)
+      },
+      { status: 500 }
+    );
   }
 }

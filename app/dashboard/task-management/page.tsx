@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,9 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Filter, Users, BarChart3 } from "lucide-react";
+import { Plus, Search, AlertCircle } from "lucide-react";
 
 interface Task {
   id: number;
@@ -39,14 +36,6 @@ interface Sprint {
   cell_name: string;
 }
 
-interface User {
-  id: string;
-  usuario: string;
-  nombre: string;
-  correo: string;
-  rol: string;
-}
-
 interface Cell {
   id: number;
   name: string;
@@ -69,10 +58,8 @@ const priorityColors = {
 };
 
 export default function TaskManagementPage() {
-  const { data: session } = useSession();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sprints, setSprints] = useState<Sprint[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [cells, setCells] = useState<Cell[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -80,8 +67,9 @@ export default function TaskManagementPage() {
   const [sprintFilter, setSprintFilter] = useState("all");
   const [userFilter, setUserFilter] = useState("all");
   const [open, setOpen] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Form state for new task
   const [formData, setFormData] = useState({
     sprintId: "",
     title: "",
@@ -94,115 +82,164 @@ export default function TaskManagementPage() {
   });
 
   useEffect(() => {
-    if (session?.user) {
-      fetchTasks();
-      fetchSprints();
-      fetchUsers();
-      fetchCells();
-    }
-  }, [session]);
+    fetchAllData();
+  }, []);
+
+  const fetchAllData = async () => {
+    setLoading(true);
+    await Promise.all([
+      fetchTasks(),
+      fetchSprints(),
+      fetchCells()
+    ]);
+    setLoading(false);
+  };
 
   const fetchTasks = async () => {
     try {
       const response = await fetch('/api/user-tasks');
+      if (!response.ok) {
+        throw new Error('Error fetching tasks');
+      }
       const data = await response.json();
+      console.log('✅ Tareas obtenidas:', data.tasks?.length || 0);
       setTasks(data.tasks || []);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+      setError('Error al cargar las tareas');
     }
   };
 
   const fetchSprints = async () => {
     try {
       const response = await fetch('/api/sprints');
+      if (!response.ok) {
+        throw new Error('Error fetching sprints');
+      }
       const data = await response.json();
       setSprints(data.sprints || []);
     } catch (error) {
       console.error('Error fetching sprints:', error);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch('/api/admin/users');
-      const data = await response.json();
-      setUsers(data.users || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+      setError('Error al cargar los sprints');
     }
   };
 
   const fetchCells = async () => {
     try {
       const response = await fetch('/api/cells');
+      if (!response.ok) {
+        throw new Error('Error fetching cells');
+      }
       const data = await response.json();
       setCells(data.cells || []);
     } catch (error) {
       console.error('Error fetching cells:', error);
-    } finally {
-      setLoading(false);
+      setError('Error al cargar las celdas');
     }
   };
 
   const handleCreateTask = async () => {
+    if (!formData.sprintId || !formData.title.trim()) {
+      setError('Por favor completa los campos requeridos (Sprint y Título)');
+      return;
+    }
+
     try {
+      setError(null);
+      const payload = {
+        sprintId: parseInt(formData.sprintId),
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        storyPoints: parseInt(formData.storyPoints.toString()) || 0,
+        taskType: formData.taskType,
+        priority: formData.priority,
+        assignedTo: formData.assignedTo.trim() || null,
+        estimatedHours: parseFloat(formData.estimatedHours.toString()) || 0
+      };
+
+      console.log('📤 Enviando payload:', payload);
+
       const response = await fetch('/api/user-tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
-      if (response.ok) {
-        setOpen(false);
-        setFormData({
-          sprintId: "",
-          title: "",
-          description: "",
-          storyPoints: 0,
-          taskType: "planned",
-          priority: "medium",
-          assignedTo: "",
-          estimatedHours: 0
-        });
-        fetchTasks();
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMsg = data.error || data.message || 'Error al crear la tarea';
+        throw new Error(errorMsg);
       }
+
+      setSuccessMessage('Tarea creada exitosamente');
+      setOpen(false);
+      setFormData({
+        sprintId: "",
+        title: "",
+        description: "",
+        storyPoints: 0,
+        taskType: "planned",
+        priority: "medium",
+        assignedTo: "",
+        estimatedHours: 0
+      });
+      
+      // Recargar tareas
+      setTimeout(() => fetchTasks(), 500);
+      setTimeout(() => setSuccessMessage(null), 3000);
     } catch (error) {
       console.error('Error creating task:', error);
+      setError(error instanceof Error ? error.message : 'Error al crear la tarea');
     }
   };
 
   const updateTaskAssignment = async (taskId: number, newAssignedTo: string) => {
     try {
+      setError(null);
       const response = await fetch('/api/user-tasks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           taskId, 
-          assignedTo: newAssignedTo || null 
+          assignedTo: newAssignedTo.trim() || null
         })
       });
 
-      if (response.ok) {
-        fetchTasks();
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Error al actualizar la asignación');
       }
+
+      setSuccessMessage('Asignación actualizada');
+      setTimeout(() => fetchTasks(), 300);
+      setTimeout(() => setSuccessMessage(null), 2000);
     } catch (error) {
       console.error('Error updating task assignment:', error);
+      setError(error instanceof Error ? error.message : 'Error al actualizar la asignación');
     }
   };
 
   const updateTaskStatus = async (taskId: number, newStatus: string) => {
     try {
+      setError(null);
       const response = await fetch('/api/user-tasks', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId, status: newStatus })
       });
 
-      if (response.ok) {
-        fetchTasks();
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Error al actualizar el estado');
       }
+
+      setSuccessMessage('Estado actualizado');
+      setTimeout(() => fetchTasks(), 300);
+      setTimeout(() => setSuccessMessage(null), 2000);
     } catch (error) {
       console.error('Error updating task status:', error);
+      setError(error instanceof Error ? error.message : 'Error al actualizar el estado');
     }
   };
 
@@ -210,18 +247,18 @@ export default function TaskManagementPage() {
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          task.description.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || task.status === statusFilter;
-    const matchesSprint = sprintFilter === "all" || (task as any).sprint_name === sprintFilter;
+    const matchesSprint = sprintFilter === "all" || task.sprint_name === sprintFilter;
     const matchesUser = userFilter === "all" || 
-                       (userFilter === "unassigned" && !(task as any).assigned_user_name) ||
-                       (task as any).assigned_username === userFilter;
+                       (userFilter === "unassigned" && !task.assigned_user_name) ||
+                       task.assigned_username === userFilter;
     
     return matchesSearch && matchesStatus && matchesSprint && matchesUser;
   });
 
   const taskStats = {
     total: tasks.length,
-    assigned: tasks.filter(t => (t as any).assigned_user_name).length,
-    unassigned: tasks.filter(t => !(t as any).assigned_user_name).length,
+    assigned: tasks.filter(t => t.assigned_user_name).length,
+    unassigned: tasks.filter(t => !t.assigned_user_name).length,
     completed: tasks.filter(t => t.status === 'done').length,
     inProgress: tasks.filter(t => t.status === 'in_progress').length,
     blocked: tasks.filter(t => t.status === 'blocked').length
@@ -232,7 +269,23 @@ export default function TaskManagementPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 p-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="font-medium">Error</p>
+            <p className="text-sm">{error}</p>
+          </div>
+        </div>
+      )}
+
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-lg">
+          <p className="font-medium">{successMessage}</p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold">Gestión de Tareas</h1>
         <Dialog open={open} onOpenChange={setOpen}>
@@ -252,7 +305,7 @@ export default function TaskManagementPage() {
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="sprint">Sprint</Label>
+                  <Label htmlFor="sprint">Sprint *</Label>
                   <Select value={formData.sprintId} onValueChange={(value) => setFormData({...formData, sprintId: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecciona un sprint" />
@@ -267,7 +320,7 @@ export default function TaskManagementPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="assignedTo">Asignar a Usuario</Label>
+                  <Label htmlFor="assignedTo">Asignar a Usuario (Opcional)</Label>
                   <Input
                     placeholder="Nombre del usuario o @usuario"
                     value={formData.assignedTo}
@@ -277,7 +330,7 @@ export default function TaskManagementPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="title">Título</Label>
+                <Label htmlFor="title">Título *</Label>
                 <Input
                   value={formData.title}
                   onChange={(e) => setFormData({...formData, title: e.target.value})}
@@ -299,6 +352,7 @@ export default function TaskManagementPage() {
                   <Label htmlFor="storyPoints">Story Points</Label>
                   <Input
                     type="number"
+                    min="0"
                     value={formData.storyPoints}
                     onChange={(e) => setFormData({...formData, storyPoints: Number(e.target.value)})}
                   />
@@ -322,6 +376,7 @@ export default function TaskManagementPage() {
                   <Input
                     type="number"
                     step="0.5"
+                    min="0"
                     value={formData.estimatedHours}
                     onChange={(e) => setFormData({...formData, estimatedHours: Number(e.target.value)})}
                   />
@@ -436,7 +491,7 @@ export default function TaskManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {[...new Set(tasks.map(t => (t as any).sprint_name).filter(Boolean))].map((sprint) => (
+                  {[...new Set(tasks.map(t => t.sprint_name).filter(Boolean))].map((sprint) => (
                     <SelectItem key={sprint} value={sprint}>
                       {String(sprint).trim()}
                     </SelectItem>
@@ -453,9 +508,9 @@ export default function TaskManagementPage() {
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
                   <SelectItem value="unassigned">Sin asignar</SelectItem>
-                  {[...new Map(tasks.filter(t => (t as any).assigned_user_name).map(t => [
-                    (t as any).assigned_username, 
-                    { username: (t as any).assigned_username, name: (t as any).assigned_user_name }
+                  {[...new Map(tasks.filter(t => t.assigned_user_name).map(t => [
+                    t.assigned_username, 
+                    { username: t.assigned_username, name: t.assigned_user_name }
                   ])).values()].map((user) => (
                     <SelectItem key={user.username} value={user.username}>
                       {user.name} (@{user.username})
@@ -476,82 +531,87 @@ export default function TaskManagementPage() {
             {filteredTasks.length} tareas encontradas
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tarea</TableHead>
-                <TableHead>Sprint</TableHead>
-                <TableHead>Asignado a</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Prioridad</TableHead>
-                <TableHead>Points</TableHead>
-                <TableHead>Acciones</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredTasks.map((task) => (
-                <TableRow key={task.id}>
-                  <TableCell>
+        <CardContent className="overflow-x-auto">
+          <div className="w-full">
+            <div className="border rounded-lg overflow-hidden">
+              {/* Table Header */}
+              <div className="bg-gray-100 grid grid-cols-7 gap-4 p-4 font-semibold text-sm">
+                <div>Tarea</div>
+                <div>Sprint</div>
+                <div>Asignado a</div>
+                <div>Estado</div>
+                <div>Prioridad</div>
+                <div>Points</div>
+                <div>Acciones</div>
+              </div>
+
+              {/* Table Body */}
+              {filteredTasks.length === 0 ? (
+                <div className="p-8 text-center text-muted-foreground">
+                  No hay tareas que coincidan con los filtros
+                </div>
+              ) : (
+                filteredTasks.map((task) => (
+                  <div key={task.id} className="border-t grid grid-cols-7 gap-4 p-4 items-center hover:bg-gray-50">
                     <div>
-                      <div className="font-medium">{task.title}</div>
-                      <div className="text-sm text-muted-foreground truncate max-w-xs">
+                      <div className="font-medium text-sm">{task.title}</div>
+                      <div className="text-xs text-muted-foreground truncate max-w-xs">
                         {task.description}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
                     <div>
-                      <div className="font-medium">{task.sprint_name}</div>
-                      <div className="text-sm text-muted-foreground">{task.cell_name}</div>
+                      <div className="font-medium text-sm">{task.sprint_name}</div>
+                      <div className="text-xs text-muted-foreground">{task.cell_name}</div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      {(task as any).assigned_user_name ? (
+                    <div className="space-y-2">
+                      {task.assigned_user_name ? (
                         <div>
-                          <div className="font-medium">{(task as any).assigned_user_name}</div>
-                          <div className="text-sm text-muted-foreground">@{(task as any).assigned_username}</div>
+                          <div className="font-medium text-xs">{task.assigned_user_name}</div>
+                          <div className="text-xs text-muted-foreground">@{task.assigned_username}</div>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground italic">Sin asignar</span>
+                        <span className="text-muted-foreground italic text-xs">Sin asignar</span>
                       )}
+                      <Input
+                        placeholder="Cambiar asignación"
+                        value={task.assigned_to || ""}
+                        onChange={(e) => updateTaskAssignment(task.id, e.target.value)}
+                        className="w-32 h-7 text-xs"
+                      />
                     </div>
-                    <Input
-                      placeholder="Cambiar asignación"
-                      value={(task as any).assigned_to || ""}
-                      onChange={(e) => updateTaskAssignment(task.id, e.target.value)}
-                      className="w-40 mt-2"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={`${statusColors[task.status]} text-white`}>
-                      {task.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={priorityColors[task.priority]}>
-                      {task.priority}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{task.story_points}</TableCell>
-                  <TableCell>
-                    <select
-                      value={task.status}
-                      onChange={(e) => updateTaskStatus(task.id, e.target.value)}
-                      className="text-sm border rounded px-2 py-1"
-                    >
-                      <option value="todo">Por Hacer</option>
-                      <option value="in_progress">En Progreso</option>
-                      <option value="review">En Revisión</option>
-                      <option value="done">Completada</option>
-                      <option value="blocked">Bloqueada</option>
-                    </select>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    <div>
+                      <Badge className={`${statusColors[task.status]} text-white text-xs`}>
+                        {task.status.replace('_', ' ').toUpperCase()}
+                      </Badge>
+                    </div>
+                    <div>
+                      <Badge className={`${priorityColors[task.priority]} text-xs`}>
+                        {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                      </Badge>
+                    </div>
+                    <div className="text-sm font-medium">{task.story_points}</div>
+                    <div>
+                      <Select
+                        value={task.status}
+                        onValueChange={(value) => updateTaskStatus(task.id, value)}
+                      >
+                        <SelectTrigger className="w-28 h-7 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todo">Por Hacer</SelectItem>
+                          <SelectItem value="in_progress">En Progreso</SelectItem>
+                          <SelectItem value="review">En Revisión</SelectItem>
+                          <SelectItem value="done">Completada</SelectItem>
+                          <SelectItem value="blocked">Bloqueada</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>
