@@ -196,9 +196,6 @@ export async function POST(request: Request) {
       console.log("✅ Task assigned to user:", finalAssignedTo);
     }
 
-    const taskId = (result as any).insertId;
-    console.log("✅ Task created with ID:", taskId);
-
     await db.end();
 
     return NextResponse.json(
