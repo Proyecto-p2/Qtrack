@@ -295,5 +295,41 @@ CREATE TABLE excel_data (
 );
 
 ALTER TABLE excel_data
-ADD COLUMN sprint VARCHAR(255);
+ADD COLUMN sprint VARCHAR(255),
 ADD COLUMN celula VARCHAR(255);
+
+ALTER TABLE excel_data
+ADD COLUMN celula VARCHAR(255);
+
+CREATE TABLE planning_data (
+id INT AUTO_INCREMENT PRIMARY KEY,
+sprint VARCHAR(255) NOT NULL UNIQUE,
+celula VARCHAR(255),
+puntos_comprometidos INT DEFAULT 0,
+items_s INT DEFAULT 0,
+items_m INT DEFAULT 0,
+items_l INT DEFAULT 0,
+created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS executed_data (
+sprint VARCHAR(100) PRIMARY KEY,
+celula VARCHAR(255),
+puntos_comprometidos INT,
+items_s INT,
+items_m INT,
+items_l INT
+);
+
+CREATE TABLE IF NOT EXISTS executed_no_planned_data (
+sprint VARCHAR(100) PRIMARY KEY,
+celula VARCHAR(100),
+puntos_comprometidos DECIMAL(10,2) DEFAULT 0,
+items_s INT DEFAULT 0,
+items_m INT DEFAULT 0,
+items_l INT DEFAULT 0
+);
+
+
+

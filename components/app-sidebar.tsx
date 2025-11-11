@@ -15,6 +15,7 @@ import {
   CalendarDays,
   CheckSquare,
   Activity,
+  Clipboard,
 } from "lucide-react";
 
 import {
@@ -60,10 +61,13 @@ const menuItems: MenuItem[] = [
   { title: "Sprints", url: "/dashboard/sprints", icon: Calendar },
   { title: "Configuración de Q", url: "/dashboard/q-configuration", icon: Settings },
   { title: "Carga de archivo", url: "/dashboard/upload", icon: Upload },
+    { title: "Performance", url: "/dashboard/planning", icon: Clipboard },
   { title: "Planificación", url: "/dashboard/sprint-planning", icon: CalendarDays },
   { title: "Usuarios", url: "/dashboard/users", icon: Users, roles: ["admin"] },
   { title: "Mi Perfil", url: "/dashboard/profile", icon: User },
   { title: "Configuración", url: "/dashboard/settings", icon: Settings },
+
+
 ];
 
 // Este componente envuelve tu Sidebar en un SessionProvider
